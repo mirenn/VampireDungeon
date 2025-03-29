@@ -18,6 +18,9 @@ export class GameManager {
   private levelSystem: LevelSystem;
   
   private isRunning: boolean = false;
+  
+  // キーボード入力の状態を管理
+  private keysPressed: { [key: string]: boolean } = {};
 
   constructor(private container: HTMLElement) {
     // シーンの作成
@@ -55,6 +58,8 @@ export class GameManager {
     
     // イベントリスナーの設定
     window.addEventListener('resize', this.onWindowResize.bind(this));
+    window.addEventListener('keydown', this.onKeyDown.bind(this));
+    window.addEventListener('keyup', this.onKeyUp.bind(this));
   }
   
   // ゲームの初期化
@@ -125,6 +130,8 @@ export class GameManager {
     
     // イベントリスナーの削除
     window.removeEventListener('resize', this.onWindowResize.bind(this));
+    window.removeEventListener('keydown', this.onKeyDown.bind(this));
+    window.removeEventListener('keyup', this.onKeyUp.bind(this));
     
     // システムのクリーンアップ
     this.playerSystem.dispose();
@@ -142,6 +149,21 @@ export class GameManager {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  // キーダウンイベントハンドラ
+  private onKeyDown(event: KeyboardEvent): void {
+    this.keysPressed[event.key] = true;
+    
+    // Vキーで敵の視認範囲表示をトグル
+    if (event.key === 'v' || event.key === 'V') {
+      this.enemySystem.toggleDetectionRanges();
+    }
+  }
+  
+  // キーアップイベントハンドラ
+  private onKeyUp(event: KeyboardEvent): void {
+    this.keysPressed[event.key] = false;
   }
   
   // アニメーションループ
