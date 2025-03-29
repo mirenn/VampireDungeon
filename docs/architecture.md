@@ -9,7 +9,8 @@
 1. **Three.js レンダリングエンジン** - 3Dグラフィックスの描画
 2. **ゲームエンティティシステム** - プレイヤー、敵、アイテムなどのゲーム要素
 3. **ゲームシステム** - 各機能の制御（敵AI、アイテム管理、レベル生成など）
-4. **React UI** - ゲーム情報の表示インターフェース
+4. **物理・衝突システム** - 壁や障害物との衝突判定、視線判定など
+5. **React UI** - ゲーム情報の表示インターフェース
 
 ## プロジェクト構造
 ```
@@ -44,6 +45,7 @@ src/
 
 - Three.jsのシーン、カメラ、レンダラーの初期化と管理
 - 各システム（プレイヤー、敵、アイテム、レベル）の初期化と統合
+- システム間の参照設定（PlayerSystemにLevelSystemを渡すなど）
 - ゲームループの制御
 - リソースの管理とクリーンアップ
 
@@ -90,6 +92,7 @@ export class Player {
   public moveBackward(distance: number): void;
   public moveLeft(distance: number): void;
   public moveRight(distance: number): void;
+  public moveInDirection(direction: THREE.Vector3, distance: number): void;
   public attack(): boolean;
   public takeDamage(amount: number): void;
   public heal(amount: number): void;
@@ -107,6 +110,7 @@ export class Player {
 敵キャラクターを表現し、以下の機能を持ちます：
 
 - プレイヤーへの追跡AI
+- 視認範囲と視認状態の管理
 - 攻撃と体力システム
 - ドロップアイテム
 
@@ -119,6 +123,8 @@ export class Enemy {
   public damage: number;
   public speed: number;
   public experienceValue: number;
+  public detectionRange: number;
+  public isPlayerDetected: boolean;
 
   constructor();
   public update(deltaTime: number): void;
@@ -126,6 +132,9 @@ export class Enemy {
   public attack(): boolean;
   public takeDamage(amount: number): void;
   public getPosition(): THREE.Vector3;
+  public addDetectionRangeToScene(scene: THREE.Scene): void;
+  public removeDetectionRangeFromScene(scene: THREE.Scene): void;
+  public toggleDetectionRange(scene: THREE.Scene): void;
   public dispose(): void;
 }
 ```
@@ -163,9 +172,10 @@ export class Item {
 ```typescript
 // PlayerSystem.ts の主要インターフェース
 export class PlayerSystem {
-  constructor(scene: THREE.Scene);
+  constructor(scene: THREE.Scene, camera: THREE.Camera);
   public init(): void;
   public update(deltaTime: number): void;
+  public setLevelSystem(levelSystem: LevelSystem): void;
   public getPlayer(): Player | null;
   public dispose(): void;
 }
@@ -183,7 +193,10 @@ export class EnemySystem {
   public update(deltaTime: number): void;
   public spawnEnemies(count: number): void;
   public setPlayer(player: Player): void;
+  public setLevelSystem(levelSystem: LevelSystem): void;
   public getEnemies(): Enemy[];
+  public toggleDetectionRanges(): void;
+  public getDetectionRangeVisibility(): boolean;
   public dispose(): void;
 }
 ```
@@ -218,10 +231,76 @@ export class LevelSystem {
   public loadLevel(level: number): void;
   public checkExitCollision(boundingBox: THREE.Box3): boolean;
   public checkWallCollision(boundingBox: THREE.Box3): boolean;
+  public getWalls(): THREE.Object3D[];
   public getCurrentLevel(): number;
   public dispose(): void;
 }
 ```
+
+## 物理・衝突システム
+
+### バウンディングボックスによる衝突判定
+
+各ゲームオブジェクト（プレイヤー、敵、壁など）は`THREE.Box3`のバウンディングボックスを持ち、衝突判定に使用します。
+
+```typescript
+// バウンディングボックスの作成と更新
+this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+
+// 衝突判定の例
+if (this.levelSystem.checkWallCollision(playerBoundingBox)) {
+  // 衝突時の処理（元の位置に戻すなど）
+  this.player.mesh.position.copy(oldPosition);
+}
+```
+
+### 敵の視線判定システム
+
+敵がプレイヤーを視認できるかどうかを判定するシステムは、レイキャスティングを使用して実装されています。
+
+```typescript
+// 視線判定の概略（EnemySystem内）
+private checkPlayerDetection(enemy: Enemy, playerPosition: THREE.Vector3): boolean {
+  // 距離チェック
+  const distance = enemy.mesh.position.distanceTo(playerPosition);
+  if (distance > enemy.detectionRange) return false;
+  
+  // 視線チェック
+  const direction = playerPosition.clone().sub(enemy.getPosition()).normalize();
+  this.raycaster.set(enemy.getPosition(), direction);
+  
+  // 壁との交差をチェック
+  const intersections = this.raycaster.intersectObjects(this.levelSystem.getWalls());
+  if (intersections.length > 0 && intersections[0].distance < distance) {
+    return false;  // 視線が壁に遮られている
+  }
+  
+  return true;  // 視認可能
+}
+```
+
+### 視覚的なデバッグ支援
+
+敵の視認範囲は視覚的に表示できるようになっており、以下の色で状態を示します：
+
+- 黄色: プレイヤーを検知していない状態
+- 赤色: プレイヤーを検知している状態
+
+これにより、壁による視線の遮断が視覚的に確認できます。
+
+## システム間の連携
+
+GameManagerは、各システム間の連携を以下のように管理しています：
+
+```typescript
+// システム間連携の例（GameManager.init()内）
+this.playerSystem.setLevelSystem(this.levelSystem);
+this.enemySystem.setPlayer(player);
+this.enemySystem.setLevelSystem(this.levelSystem);
+this.itemSystem.setPlayer(player);
+```
+
+このように依存関係を注入することで、各システムは必要な情報を取得し、互いに協調して機能します。
 
 ## React UI コンポーネント
 
@@ -242,12 +321,18 @@ const UI: React.FC<UIProps> = () => {
 2. `App`コンポーネントがレンダリングされる
 3. `useEffect`内で`GameManager`がインスタンス化される
 4. `GameManager.init()`が各システムを初期化
+   - LevelSystemが初期化される
+   - PlayerSystemが初期化される
+   - EnemySystemが初期化される
+   - システム間の参照が設定される
 5. `GameManager.start()`がゲームループを開始
 
 ## データフロー
 
-1. ユーザー入力（キーボード）→ `PlayerSystem` → `Player`の移動
-2. ゲームループの各フレーム：
+1. ユーザー入力（キーボード、マウス）→ `PlayerSystem` → `Player`の移動
+2. `Player`移動 → `LevelSystem.checkWallCollision()` → 衝突判定と位置修正
+3. `EnemySystem.update()` → 敵の視線判定と移動 → `LevelSystem.checkWallCollision()` → 衝突判定
+4. ゲームループの各フレーム：
    - `GameManager`が各システムの`update`メソッドを呼び出す
    - 各システムが関連エンティティを更新
    - 衝突検出と相互作用の処理
@@ -272,19 +357,27 @@ const UI: React.FC<UIProps> = () => {
 2. `Player`クラスに武器管理メソッドを追加
 3. 攻撃ロジックの実装
 
+### 衝突判定の拡張
+
+1. 新しい衝突タイプの追加には、対応するバウンディングボックスとチェックメソッドを作成
+2. `LevelSystem`に新たな衝突判定メソッドを追加
+3. 該当するシステムクラスで新しい衝突判定を利用
+
 ## パフォーマンス最適化
 
 - オブジェクトプーリングの使用（敵、アイテムなど）
+- 空間分割による衝突判定の最適化
 - レベルのチャンク分割
 - LOD（Level of Detail）システムの実装
 - シェーダーの最適化
 
 ## 既知の課題と今後の対応
 
-1. 衝突判定の最適化
-2. モバイル対応
-3. セーブ/ロードシステムの実装
-4. サウンドシステムの追加
+1. 対角線上の壁の衝突判定の最適化
+2. パスファインディングAIの実装（敵が障害物を迂回する）
+3. モバイル対応
+4. セーブ/ロードシステムの実装
+5. サウンドシステムの追加
 
 ## ビルドと展開
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Enemy } from '../entities/Enemy';
 import { Player } from '../entities/Player';
+import { LevelSystem } from './LevelSystem';
 
 export class EnemySystem {
   private enemies: Enemy[] = [];
@@ -9,12 +10,21 @@ export class EnemySystem {
   private spawnInterval: number = 2; // 2秒ごとに敵をスポーン
   private maxEnemies: number = 20; // 最大敵数
   private isDetectionRangeVisible: boolean = false; // 視認範囲の表示状態
+  private levelSystem: LevelSystem | null = null;
+  private raycaster: THREE.Raycaster;
 
-  constructor(private scene: THREE.Scene) {}
+  constructor(private scene: THREE.Scene) {
+    this.raycaster = new THREE.Raycaster();
+  }
 
   public init(): void {
     // 初期の敵をスポーン
     this.spawnEnemies(5);
+  }
+
+  // レベルシステムへの参照を設定
+  public setLevelSystem(levelSystem: LevelSystem): void {
+    this.levelSystem = levelSystem;
   }
 
   public update(deltaTime: number): void {
@@ -25,13 +35,24 @@ export class EnemySystem {
       // 敵の更新処理
       for (let i = this.enemies.length - 1; i >= 0; i--) {
         const enemy = this.enemies[i];
+        const oldPosition = enemy.mesh.position.clone();
         
         // プレイヤーを視認しているかチェック
-        const isDetected = enemy.checkPlayerDetection(playerPosition);
+        const isDetected = this.checkPlayerDetection(enemy, playerPosition);
         
         // プレイヤーが視認範囲内の場合のみ、プレイヤーに向かって移動
         if (isDetected) {
           enemy.moveTowards(playerPosition, deltaTime);
+          
+          // 壁との衝突判定
+          if (this.levelSystem) {
+            const enemyBoundingBox = enemy.mesh.userData.boundingBox;
+            if (this.levelSystem.checkWallCollision(enemyBoundingBox)) {
+              // 壁と衝突している場合は位置を元に戻す
+              enemy.mesh.position.copy(oldPosition);
+              enemy.update(0); // バウンディングボックスを更新
+            }
+          }
         }
         
         // 敵の更新
@@ -65,6 +86,43 @@ export class EnemySystem {
     }
   }
 
+  // プレイヤーの視認チェック（視線が通るかどうか）
+  private checkPlayerDetection(enemy: Enemy, playerPosition: THREE.Vector3): boolean {
+    // 敵からプレイヤーへの距離をチェック
+    const distance = enemy.mesh.position.distanceTo(playerPosition);
+    
+    // 距離が視認範囲外なら即座にfalseを返す
+    if (distance > enemy.detectionRange) {
+      enemy.isPlayerDetected = false;
+      return false;
+    }
+    
+    // 視線チェック（壁が遮っていないか）
+    if (this.levelSystem) {
+      // 敵からプレイヤーへの方向ベクトルを計算
+      const direction = new THREE.Vector3()
+        .subVectors(playerPosition, enemy.getPosition())
+        .normalize();
+      
+      // レイキャスターを設定
+      this.raycaster.set(enemy.getPosition(), direction);
+      
+      // 壁との交差をチェック
+      const walls = this.levelSystem.getWalls();
+      const intersections = this.raycaster.intersectObjects(walls);
+      
+      // 交差があり、その距離がプレイヤーまでの距離より短い場合、視線が遮られている
+      if (intersections.length > 0 && intersections[0].distance < distance) {
+        enemy.isPlayerDetected = false;
+        return false;
+      }
+    }
+    
+    // 視認範囲内で、視線も通っている場合はプレイヤーを検知
+    enemy.isPlayerDetected = true;
+    return true;
+  }
+
   // 敵をスポーン
   public spawnEnemies(count: number): void {
     for (let i = 0; i < count; i++) {
@@ -79,6 +137,16 @@ export class EnemySystem {
       // 敵を作成
       const enemy = new Enemy();
       enemy.mesh.position.set(x, 0, z);
+      
+      // 壁と衝突していないか確認
+      if (this.levelSystem) {
+        enemy.update(0); // バウンディングボックスを更新
+        if (this.levelSystem.checkWallCollision(enemy.mesh.userData.boundingBox)) {
+          // 壁と衝突している場合は生成しない
+          enemy.dispose();
+          continue;
+        }
+      }
       
       // シーンに追加
       this.scene.add(enemy.mesh);

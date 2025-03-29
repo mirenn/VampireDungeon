@@ -94,10 +94,10 @@ export class GameManager {
     this.scene.add(ground);
     
     // 各システムの初期化
+    this.levelSystem.init();
     this.playerSystem.init();
     this.enemySystem.init();
     this.itemSystem.init();
-    this.levelSystem.init();
     
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
@@ -107,6 +107,10 @@ export class GameManager {
     if (player) {
       this.enemySystem.setPlayer(player);
       this.itemSystem.setPlayer(player);
+      
+      // レベルシステムの参照を設定
+      this.playerSystem.setLevelSystem(this.levelSystem);
+      this.enemySystem.setLevelSystem(this.levelSystem);
       
       // グローバルにプレイヤー情報を公開（UIコンポーネント用）
       (window as any).gamePlayer = player;

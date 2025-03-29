@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Player } from '../entities/Player';
+import { LevelSystem } from './LevelSystem';
 
 export class PlayerSystem {
   private player: Player | null = null;
@@ -9,6 +10,8 @@ export class PlayerSystem {
   private plane: THREE.Plane;
   private cameraOffset: THREE.Vector3;
   private cameraLerpFactor: number = 0.1; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
+  private levelSystem: LevelSystem | null = null;
+  private playerDestination: THREE.Vector3 | null = null; // プレイヤーの目的地（パスファインディング用）
 
   constructor(private scene: THREE.Scene, private camera: THREE.Camera) {
     // キー入力のイベントリスナーを設定
@@ -36,8 +39,16 @@ export class PlayerSystem {
     this.updateCameraPosition();
   }
 
+  // レベルシステムへの参照を設定
+  public setLevelSystem(levelSystem: LevelSystem): void {
+    this.levelSystem = levelSystem;
+  }
+
   public update(deltaTime: number): void {
     if (!this.player) return;
+
+    // 現在位置を保存（衝突判定後に戻すため）
+    const oldPosition = this.player.mesh.position.clone();
 
     // キーボードによる移動処理（開発中の利便性のために残しておく）
     const keyboardMoveSpeed = 10 * deltaTime;
@@ -84,6 +95,27 @@ export class PlayerSystem {
 
     // プレイヤーの更新処理
     this.player.update(deltaTime);
+    
+    // 壁との衝突判定
+    if (this.levelSystem) {
+      const playerBoundingBox = this.player.mesh.userData.boundingBox;
+      if (this.levelSystem.checkWallCollision(playerBoundingBox)) {
+        // 壁と衝突している場合は位置を元に戻す
+        this.player.mesh.position.copy(oldPosition);
+        this.player.update(0); // バウンディングボックスを更新
+      }
+
+      // 出口との衝突判定
+      if (this.levelSystem.checkExitCollision(playerBoundingBox)) {
+        // 次のレベルへ進む
+        const nextLevel = this.levelSystem.getCurrentLevel() + 1;
+        this.levelSystem.loadLevel(nextLevel);
+        console.log(`レベル${nextLevel}へ進みました！`);
+        
+        // グローバルレベル情報を更新（UI用）
+        (window as any).gameLevel = nextLevel;
+      }
+    }
     
     // カメラの位置を更新
     this.updateCameraPosition();

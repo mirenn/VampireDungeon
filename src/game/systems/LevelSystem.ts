@@ -133,6 +133,11 @@ export class LevelSystem {
     return false;
   }
 
+  // 壁のリストを取得（視線判定用）
+  public getWalls(): THREE.Object3D[] {
+    return this.walls;
+  }
+
   // 現在のレベルを取得
   public getCurrentLevel(): number {
     return this.currentLevel;
