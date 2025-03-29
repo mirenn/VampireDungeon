@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PlayerSystem } from './systems/PlayerSystem';
 import { EnemySystem } from './systems/EnemySystem';
 import { ItemSystem } from './systems/ItemSystem';
@@ -9,7 +9,7 @@ export class GameManager {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private controls: OrbitControls;
+  private controls: OrbitControls | null = null; // OrbitControlsをnullで初期化
   private clock: THREE.Clock;
   
   private playerSystem: PlayerSystem;
@@ -30,7 +30,8 @@ export class GameManager {
       0.1,
       1000
     );
-    this.camera.position.set(0, 20, 20);
+    // カメラの初期位置を少し高くして、プレイヤーを見下ろす視点に
+    this.camera.position.set(0, 15, 15);
     this.camera.lookAt(0, 0, 0);
     
     // レンダラーの作成
@@ -40,17 +41,14 @@ export class GameManager {
     this.renderer.shadowMap.enabled = true;
     this.container.appendChild(this.renderer.domElement);
     
-    // コントロールの作成
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.05;
-    this.controls.maxPolarAngle = Math.PI / 2.5; // 視点の制限（地面よりも下に行かないように）
+    // OrbitControlsを使用しない（プレイヤー追従カメラを使用するため）
+    // 右クリックでの移動機能を優先するため、コントロールは無効化
     
     // クロックの初期化
     this.clock = new THREE.Clock();
     
     // システムの初期化
-    this.playerSystem = new PlayerSystem(this.scene);
+    this.playerSystem = new PlayerSystem(this.scene, this.camera);
     this.enemySystem = new EnemySystem(this.scene);
     this.itemSystem = new ItemSystem(this.scene);
     this.levelSystem = new LevelSystem(this.scene);
@@ -93,6 +91,17 @@ export class GameManager {
     
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
+    
+    // プレイヤーの参照をシステム間で共有
+    const player = this.playerSystem.getPlayer();
+    if (player) {
+      this.enemySystem.setPlayer(player);
+      this.itemSystem.setPlayer(player);
+      
+      // グローバルにプレイヤー情報を公開（UIコンポーネント用）
+      (window as any).gamePlayer = player;
+      (window as any).gameLevel = this.levelSystem.getCurrentLevel();
+    }
   }
   
   // ゲームの開始
@@ -149,8 +158,10 @@ export class GameManager {
     this.itemSystem.update(deltaTime);
     this.levelSystem.update(deltaTime);
     
-    // コントロールの更新
-    this.controls.update();
+    // コントロールの更新（使用していない場合は無視）
+    if (this.controls) {
+      this.controls.update();
+    }
     
     // レンダリング
     this.renderer.render(this.scene, this.camera);

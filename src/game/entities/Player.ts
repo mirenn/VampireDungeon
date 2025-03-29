@@ -62,6 +62,14 @@ export class Player {
     }
   }
   
+  // 指定した方向へ移動（右クリック移動用）
+  public moveInDirection(direction: THREE.Vector3, distance: number): void {
+    const moveVec = direction.clone().multiplyScalar(distance);
+    this.mesh.position.add(moveVec);
+    this.direction.copy(direction).normalize();
+    this.rotateToDirection();
+  }
+  
   // 前進
   public moveForward(distance: number): void {
     const moveVec = new THREE.Vector3(0, 0, -1).multiplyScalar(distance);
