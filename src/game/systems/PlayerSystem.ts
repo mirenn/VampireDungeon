@@ -23,7 +23,8 @@ export class PlayerSystem {
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     
     // カメラのオフセット位置（プレイヤーからの相対位置）
-    this.cameraOffset = new THREE.Vector3(0, 15, 15);
+    this.cameraOffset = new THREE.Vector3(0, 25, 25);
+    this.cameraLerpFactor = 0.1; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
   }
 
   public init(): void {
@@ -174,7 +175,7 @@ export class PlayerSystem {
 
   // カメラの位置を更新（プレイヤーを追従）
   private updateCameraPosition(): void {
-    if (!this.player || !(this.camera instanceof THREE.PerspectiveCamera)) return;
+    if (!this.player) return;
     
     // プレイヤーの現在位置を取得
     const playerPosition = this.player.getPosition();
@@ -187,6 +188,11 @@ export class PlayerSystem {
     
     // カメラの注視点をプレイヤーに設定
     this.camera.lookAt(playerPosition);
+    
+    // オルソグラフィックカメラの投影行列を更新
+    if (this.camera instanceof THREE.OrthographicCamera) {
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   // プレイヤーの参照を取得

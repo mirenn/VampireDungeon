@@ -7,7 +7,7 @@ import { LevelSystem } from './systems/LevelSystem';
 
 export class GameManager {
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.OrthographicCamera; // パースペクティブからオルソグラフィックに変更
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls | null = null; // OrbitControlsをnullで初期化
   private clock: THREE.Clock;
@@ -26,15 +26,20 @@ export class GameManager {
     // シーンの作成
     this.scene = new THREE.Scene();
     
-    // カメラの作成
-    this.camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
+    // カメラの作成（正射影カメラに変更）
+    const aspect = window.innerWidth / window.innerHeight;
+    const frustumSize = 30; // より広い視野に調整
+    this.camera = new THREE.OrthographicCamera(
+      frustumSize * aspect / -2,
+      frustumSize * aspect / 2,
+      frustumSize / 2,
+      frustumSize / -2,
       0.1,
       1000
     );
-    // カメラの初期位置を少し高くして、プレイヤーを見下ろす視点に
-    this.camera.position.set(0, 15, 15);
+    
+    // カメラの初期位置を設定
+    this.camera.position.set(0, 20, 20);
     this.camera.lookAt(0, 0, 0);
     
     // レンダラーの作成
@@ -146,7 +151,14 @@ export class GameManager {
   
   // リサイズ対応
   private onWindowResize(): void {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const aspect = window.innerWidth / window.innerHeight;
+    const frustumSize = 20;
+    
+    this.camera.left = frustumSize * aspect / -2;
+    this.camera.right = frustumSize * aspect / 2;
+    this.camera.top = frustumSize / 2;
+    this.camera.bottom = frustumSize / -2;
+    
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
