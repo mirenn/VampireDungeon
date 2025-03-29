@@ -42,8 +42,40 @@ export class LevelSystem {
 
   // レベルを生成
   private generateLevel(level: number): void {
-    // 壁の色を決定（レベルによって変化）
-    const wallColor = new THREE.Color(0.2 + level * 0.05, 0.2, 0.3 + level * 0.05);
+    // 階層ごとの固定値を設定
+    let wallColor: THREE.Color;
+    let size: number;
+    let obstacles: number;
+    
+    // 階層ごとに異なる値を設定
+    switch (level) {
+      case 1:
+        // 第1階層
+        wallColor = new THREE.Color(0.2, 0.2, 0.3);
+        size = 25;
+        obstacles = 7;
+        break;
+      case 2:
+        // 第2階層
+        wallColor = new THREE.Color(0.3, 0.2, 0.4);
+        size = 30;
+        obstacles = 12;
+        break;
+      case 3:
+        // 第3階層
+        wallColor = new THREE.Color(0.4, 0.2, 0.5);
+        size = 35;
+        obstacles = 18;
+        break;
+      default:
+        // それ以降（ボスステージなど）
+        wallColor = new THREE.Color(0.5, 0.2, 0.6);
+        size = 40;
+        obstacles = 20;
+        break;
+    }
+    
+    const wallHeight = 4;
     
     // 壁のマテリアル
     const wallMaterial = new THREE.MeshStandardMaterial({
@@ -51,10 +83,6 @@ export class LevelSystem {
       roughness: 0.7,
       metalness: 0.2
     });
-    
-    // ダンジョンのサイズ（レベルによって大きくなる）
-    const size = 20 + level * 5;
-    const wallHeight = 4;
     
     // 外周の壁を作成
     const createWall = (x: number, z: number, width: number, depth: number) => {
@@ -93,8 +121,7 @@ export class LevelSystem {
     this.levelObjects.push(exit);
     this.exits.push(exit);
     
-    // レベル内の障害物（レベルによって数が増える）
-    const obstacles = Math.min(5 + level * 2, 20);
+    // レベル内の障害物（階層ごとに固定数）
     for (let i = 0; i < obstacles; i++) {
       // ランダムなサイズと位置
       const obstacleWidth = 1 + Math.random() * 3;

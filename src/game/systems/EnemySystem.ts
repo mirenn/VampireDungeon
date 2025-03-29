@@ -67,12 +67,10 @@ export class EnemySystem {
           enemy.dispose();
           this.enemies.splice(i, 1);
           
-          // プレイヤーに経験値を付与
+          // レベルアップシステムの代わりに単に経験値のみ付与
           if (this.player) {
-            const leveledUp = this.player.gainExperience(enemy.experienceValue);
-            if (leveledUp) {
-              console.log('Level up! New level: ' + this.player.level);
-            }
+            this.player.gainExperience(enemy.experienceValue);
+            // レベルアップ判定は削除
           }
         }
       }
@@ -80,7 +78,27 @@ export class EnemySystem {
       // 敵の生成タイマー更新
       this.spawnTimer += deltaTime;
       if (this.spawnTimer >= this.spawnInterval && this.enemies.length < this.maxEnemies) {
-        this.spawnEnemies(1);
+        // 階層ごとの敵の出現数を調整
+        const currentLevel = this.levelSystem ? this.levelSystem.getCurrentLevel() : 1;
+        let spawnCount = 1;
+        
+        // 階層に基づいて敵の出現数を決定
+        switch (currentLevel) {
+          case 1:
+            spawnCount = 1;
+            break;
+          case 2:
+            spawnCount = 2;
+            break;
+          case 3:
+            spawnCount = 3;
+            break;
+          default:
+            spawnCount = 3;
+            break;
+        }
+        
+        this.spawnEnemies(spawnCount);
         this.spawnTimer = 0;
       }
     }

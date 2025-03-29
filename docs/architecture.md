@@ -70,7 +70,6 @@ export class GameManager {
 
 - 移動とアニメーション
 - ステータス管理（体力、経験値など）
-- レベルアップシステム
 - 武器とアイテムの管理
 
 ```typescript
@@ -220,7 +219,7 @@ export class ItemSystem {
 
 #### LevelSystem
 
-レベルの生成と管理を担当します：
+階層の生成と管理を担当します：
 
 ```typescript
 // LevelSystem.ts の主要インターフェース
@@ -309,7 +308,7 @@ this.itemSystem.setPlayer(player);
 ```typescript
 // UI.tsx の主要インターフェース
 const UI: React.FC<UIProps> = () => {
-  // ステータス表示（体力、経験値、レベルなど）
+  // ステータス表示（体力、経験値など）
   // 武器・アイテム表示
   // ダンジョンレベル表示
 }

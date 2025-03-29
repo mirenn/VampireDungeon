@@ -139,18 +139,8 @@ export class Player {
   // 経験値を獲得
   public gainExperience(amount: number): boolean {
     this.experience += amount;
-    const expNeeded = this.level * 100;
-    
-    // レベルアップの判定
-    if (this.experience >= expNeeded) {
-      this.level++;
-      this.experience -= expNeeded;
-      this.maxHealth += 10;
-      this.health = this.maxHealth;
-      this.attackPower += 2;
-      return true; // レベルアップした
-    }
-    return false; // レベルアップしていない
+    // レベルアップはせず、経験値だけを累積する
+    return false; // レベルアップしない
   }
   
   // 武器を追加
