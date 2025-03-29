@@ -77,35 +77,6 @@ npm run dev
 
 ダンジョンはレベルごとに自動生成され、レベルが上がるほど難易度が上昇します。各レベルには次のレベルへの出口があります。
 
-## プロジェクト構造
-
-```
-index.html               // メインHTMLファイル
-package.json             // パッケージ設定
-tsconfig.json            // TypeScript設定
-vite.config.ts           // Vite設定
-src/
-  App.tsx                // メインReactコンポーネント
-  main.tsx               // エントリーポイント
-  components/
-    UI.tsx               // ゲームUI
-  game/
-    GameManager.ts       // ゲーム全体の管理
-    entities/
-      Enemy.ts           // 敵エンティティ
-      Item.ts            // アイテムエンティティ
-      Player.ts          // プレイヤーエンティティ
-    systems/
-      EnemySystem.ts     // 敵の管理システム
-      ItemSystem.ts      // アイテムの管理システム
-      LevelSystem.ts     // レベルの管理システム
-      PlayerSystem.ts    // プレイヤーの管理システム
-  styles/
-    App.css              // アプリケーションスタイル
-    index.css            // グローバルスタイル
-    UI.css               // UIスタイル
-```
-
 ## 今後の拡張予定
 
 - 複数の武器タイプ

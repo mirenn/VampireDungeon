@@ -11,6 +11,31 @@
 3. **ゲームシステム** - 各機能の制御（敵AI、アイテム管理、レベル生成など）
 4. **React UI** - ゲーム情報の表示インターフェース
 
+## プロジェクト構造
+```
+src/
+  ├─ main.tsx           # アプリケーションのエントリーポイント
+  ├─ App.tsx           # メインのReactコンポーネント
+  ├─ assets/           # 画像、モデル、テクスチャなどのリソース
+  ├─ components/       # Reactコンポーネント
+  │   └─ UI.tsx       # ゲーム内UI
+  ├─ game/            # ゲームのコア機能
+  │   ├─ GameManager.ts   # ゲーム全体の管理
+  │   ├─ entities/    # ゲーム内のエンティティ
+  │   │   ├─ Enemy.ts    # 敵の実装
+  │   │   ├─ Item.ts     # アイテムの実装
+  │   │   └─ Player.ts   # プレイヤーの実装
+  │   └─ systems/     # ゲームシステム
+  │       ├─ EnemySystem.ts   # 敵の管理
+  │       ├─ ItemSystem.ts    # アイテムの管理
+  │       ├─ LevelSystem.ts   # レベルの生成と管理
+  │       └─ PlayerSystem.ts  # プレイヤーの入力と状態管理
+  └─ styles/          # CSSスタイル
+      ├─ App.css     # アプリケーション全体のスタイル
+      ├─ index.css   # グローバルスタイル
+      └─ UI.css      # UI用のスタイル
+```
+
 ## クラス設計
 
 ### GameManager
