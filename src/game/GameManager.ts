@@ -4,6 +4,7 @@ import { PlayerSystem } from './systems/PlayerSystem';
 import { EnemySystem } from './systems/EnemySystem';
 import { ItemSystem } from './systems/ItemSystem';
 import { LevelSystem } from './systems/LevelSystem';
+import { PathFindingSystem } from './systems/PathFindingSystem';
 
 export class GameManager {
   private scene: THREE.Scene;
@@ -16,6 +17,7 @@ export class GameManager {
   private enemySystem: EnemySystem;
   private itemSystem: ItemSystem;
   private levelSystem: LevelSystem;
+  private pathFindingSystem: PathFindingSystem;
   
   private isRunning: boolean = false;
   
@@ -56,10 +58,13 @@ export class GameManager {
     this.clock = new THREE.Clock();
     
     // システムの初期化
+    this.levelSystem = new LevelSystem(this.scene);
     this.playerSystem = new PlayerSystem(this.scene, this.camera);
     this.enemySystem = new EnemySystem(this.scene);
     this.itemSystem = new ItemSystem(this.scene);
-    this.levelSystem = new LevelSystem(this.scene);
+    
+    // パスファインディングシステムの初期化（LevelSystemに依存）
+    this.pathFindingSystem = new PathFindingSystem(this.levelSystem, 1);
     
     // イベントリスナーの設定
     window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -102,6 +107,9 @@ export class GameManager {
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
     
+    // パスファインディングシステムにレベル変更を通知
+    this.pathFindingSystem.updateGrid();
+    
     // プレイヤーの参照をシステム間で共有
     const player = this.playerSystem.getPlayer();
     if (player) {
@@ -111,6 +119,9 @@ export class GameManager {
       // レベルシステムの参照を設定
       this.playerSystem.setLevelSystem(this.levelSystem);
       this.enemySystem.setLevelSystem(this.levelSystem);
+      
+      // パスファインディングシステムの参照を設定
+      this.playerSystem.setPathFindingSystem(this.pathFindingSystem);
       
       // グローバルにプレイヤー情報を公開（UIコンポーネント用）
       (window as any).gamePlayer = player;

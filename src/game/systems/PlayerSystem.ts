@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
+import { PathFindingSystem } from './PathFindingSystem';
 
 export class PlayerSystem {
   private player: Player | null = null;
@@ -11,7 +12,11 @@ export class PlayerSystem {
   private cameraOffset: THREE.Vector3;
   private cameraLerpFactor: number = 0.1; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
   private levelSystem: LevelSystem | null = null;
-  private playerDestination: THREE.Vector3 | null = null; // プレイヤーの目的地（パスファインディング用）
+  private pathFindingSystem: PathFindingSystem | null = null;
+  private pathToFollow: THREE.Vector3[] = []; // 経路探索で生成されたパス
+  private currentPathIndex: number = 0; // 現在のパスのインデックス
+  private pathMarkers: THREE.Object3D[] = []; // パスを可視化するマーカー
+  private showPath: boolean = true; // パスを可視化するかどうかのフラグ
 
   constructor(private scene: THREE.Scene, private camera: THREE.Camera) {
     // キー入力のイベントリスナーを設定
@@ -44,6 +49,11 @@ export class PlayerSystem {
     this.levelSystem = levelSystem;
   }
 
+  // パスファインディングシステムへの参照を設定
+  public setPathFindingSystem(pathFindingSystem: PathFindingSystem): void {
+    this.pathFindingSystem = pathFindingSystem;
+  }
+
   public update(deltaTime: number): void {
     if (!this.player) return;
 
@@ -55,26 +65,88 @@ export class PlayerSystem {
     
     if (this.keyState['w'] || this.keyState['ArrowUp']) {
       this.player.moveForward(keyboardMoveSpeed);
-      this.targetPosition = null; // キー入力があった場合、目標位置をリセット
+      this.clearPath(); // キー入力があった場合、パスをリセット
     }
     if (this.keyState['s'] || this.keyState['ArrowDown']) {
       this.player.moveBackward(keyboardMoveSpeed);
-      this.targetPosition = null; // キー入力があった場合、目標位置をリセット
+      this.clearPath(); // キー入力があった場合、パスをリセット
     }
     if (this.keyState['a'] || this.keyState['ArrowLeft']) {
       this.player.moveLeft(keyboardMoveSpeed);
-      this.targetPosition = null; // キー入力があった場合、目標位置をリセット
+      this.clearPath(); // キー入力があった場合、パスをリセット
     }
     if (this.keyState['d'] || this.keyState['ArrowRight']) {
       this.player.moveRight(keyboardMoveSpeed);
-      this.targetPosition = null; // キー入力があった場合、目標位置をリセット
+      this.clearPath(); // キー入力があった場合、パスをリセット
     }
 
-    // 右クリックでの移動処理
-    if (this.targetPosition) {
+    // パス追跡による移動処理
+    if (this.pathToFollow.length > 0 && this.currentPathIndex < this.pathToFollow.length) {
+      const currentTarget = this.pathToFollow[this.currentPathIndex];
+      const currentPos = this.player.getPosition();
+      
+      // 現在の目標点までの方向と距離を計算
+      const direction = new THREE.Vector3().subVectors(currentTarget, currentPos);
+      direction.y = 0; // Y軸の移動を無視
+      const distance = direction.length();
+      
+      // プレイヤーの向きを徐々に移動方向に変える
+      this.player.smoothLookAt(currentTarget, 5 * deltaTime); // 回転速度を調整
+      
+      // 次の目標点に十分近づいたらインデックスを進める
+      if (distance < 0.5) {
+        this.currentPathIndex++;
+        
+        // 次の目標点に徐々に加速（滑らかな動き）
+        if (this.currentPathIndex < this.pathToFollow.length) {
+          const nextTarget = this.pathToFollow[this.currentPathIndex];
+          // プレイヤーの次の方向を設定（移動方向変化をスムーズにする）
+          this.player.prepareNextDirection(
+            nextTarget, 
+            this.currentPathIndex < this.pathToFollow.length - 1 ? 
+              this.pathToFollow[this.currentPathIndex + 1] : null
+          );
+        }
+        
+        // パスの終点に到達した場合
+        if (this.currentPathIndex >= this.pathToFollow.length) {
+          // パスをクリア
+          this.clearPath();
+        }
+      } else {
+        // 移動方向を正規化して移動量を計算
+        direction.normalize();
+        // カーブに応じたスピード調整（曲がり角で減速）
+        let speedFactor = 1.0;
+        
+        // 次の点があるかつ、現在と次の点の間に大きな角度がある場合は減速
+        if (this.currentPathIndex < this.pathToFollow.length - 1) {
+          const nextPoint = this.pathToFollow[this.currentPathIndex + 1];
+          const currentToTarget = new THREE.Vector3().subVectors(currentTarget, currentPos).normalize();
+          const targetToNext = new THREE.Vector3().subVectors(nextPoint, currentTarget).normalize();
+          const turnAngle = currentToTarget.angleTo(targetToNext);
+          
+          // 角度が大きいほど減速
+          if (turnAngle > Math.PI / 6) { // 30度以上なら減速
+            speedFactor = Math.max(0.5, 1 - turnAngle / Math.PI); // 速度を最低50%まで
+          }
+        }
+        
+        const moveSpeed = this.player.speed * deltaTime * speedFactor;
+        const moveDistance = Math.min(moveSpeed, distance); // 目標を超えないようにする
+        
+        // プレイヤーを移動
+        this.player.moveInDirection(direction, moveDistance);
+      }
+    }
+    // 直線的な右クリック移動処理（パスが見つからなかった場合のフォールバック）
+    else if (this.targetPosition) {
       const currentPos = this.player.getPosition();
       const direction = new THREE.Vector3().subVectors(this.targetPosition, currentPos);
       direction.y = 0; // Y軸の移動を無視
+      
+      // プレイヤーの向きを徐々に移動方向に変える
+      this.player.smoothLookAt(this.targetPosition, 5 * deltaTime);
       
       // 目標位置までの距離
       const distance = direction.length();
@@ -85,6 +157,7 @@ export class PlayerSystem {
       } else {
         // 移動方向を正規化して移動量を計算
         direction.normalize();
+        
         const moveSpeed = this.player.speed * deltaTime;
         const moveDistance = Math.min(moveSpeed, distance); // 目標を超えないようにする
         
@@ -103,6 +176,12 @@ export class PlayerSystem {
         // 壁と衝突している場合は位置を元に戻す
         this.player.mesh.position.copy(oldPosition);
         this.player.update(0); // バウンディングボックスを更新
+        
+        // 経路再計算が必要な場合（パスに沿って移動中に衝突した場合）
+        if (this.pathToFollow.length > 0) {
+          // 少し遅延させて再計算を試みる（数フレーム連続で衝突しないようにするため）
+          setTimeout(() => this.recalculatePath(), 100);
+        }
       }
 
       // 出口との衝突判定
@@ -111,6 +190,14 @@ export class PlayerSystem {
         const nextLevel = this.levelSystem.getCurrentLevel() + 1;
         this.levelSystem.loadLevel(nextLevel);
         console.log(`レベル${nextLevel}へ進みました！`);
+        
+        // パスをクリア
+        this.clearPath();
+        
+        // パスファインディングシステムにレベル変更を通知
+        if (this.pathFindingSystem) {
+          this.pathFindingSystem.setUpdateRequired();
+        }
         
         // グローバルレベル情報を更新（UI用）
         (window as any).gameLevel = nextLevel;
@@ -133,11 +220,25 @@ export class PlayerSystem {
       this.player.dispose();
       this.player = null;
     }
+    
+    // パスマーカーの削除
+    this.clearPathMarkers();
   }
 
   // キーが押された時の処理
   private onKeyDown(event: KeyboardEvent): void {
     this.keyState[event.key] = true;
+    
+    // Pキーでパス表示をトグル
+    if (event.key === 'p' || event.key === 'P') {
+      this.showPath = !this.showPath;
+      console.log(`パスの表示: ${this.showPath ? 'オン' : 'オフ'}`);
+      
+      // パスの表示状態を更新
+      for (const marker of this.pathMarkers) {
+        marker.visible = this.showPath;
+      }
+    }
   }
 
   // キーが離された時の処理
@@ -149,7 +250,7 @@ export class PlayerSystem {
   private onRightClick(event: MouseEvent): void {
     event.preventDefault(); // デフォルトのコンテキストメニューを表示しない
     
-    if (!this.player) return;
+    if (!this.player || !this.pathFindingSystem) return;
     
     // マウス位置の正規化（-1〜1の範囲）
     const mouse = new THREE.Vector2();
@@ -164,16 +265,159 @@ export class PlayerSystem {
     const targetPoint = new THREE.Vector3();
     
     if (ray.intersectPlane(this.plane, targetPoint)) {
-      // 交点があれば目標位置として設定
+      // 交点を目標位置として設定
       this.targetPosition = targetPoint;
       
-      // 移動先を視覚的に示すためのエフェクト（オプション）
+      // クリック位置が障害物近すぎないか確認
+      if (this.levelSystem) {
+        const levelWalls = this.levelSystem.getWalls();
+        const minSafeDistance = 0.5; // 障害物からの最小安全距離
+        
+        // 目標位置の周りに小さなバウンディングボックスを作成して、障害物との衝突をチェック
+        const tempBox = new THREE.Box3().setFromCenterAndSize(
+          targetPoint,
+          new THREE.Vector3(minSafeDistance * 2, minSafeDistance * 2, minSafeDistance * 2)
+        );
+        
+        // 障害物との衝突がある場合は、クリック位置を少し調整
+        for (const wall of levelWalls) {
+          const wallBox = wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
+          if (tempBox.intersectsBox(wallBox)) {
+            // 障害物からの最短方向と距離を計算（単純化のため中心点ベースで）
+            const wallCenter = new THREE.Vector3();
+            wallBox.getCenter(wallCenter);
+            const awayDir = new THREE.Vector3().subVectors(targetPoint, wallCenter).normalize();
+            
+            // 障害物からより離れた位置に調整
+            targetPoint.add(awayDir.multiplyScalar(minSafeDistance * 2));
+            this.targetPosition = targetPoint;
+            break;
+          }
+        }
+      }
+      
+      // パスファインディングで経路を探索
+      const startPos = this.player.getPosition();
+      const path = this.pathFindingSystem.findPath(startPos, targetPoint);
+      
+      // パスが見つかった場合
+      if (path.length > 0) {
+        this.clearPath(); // 既存のパスをクリア
+        this.pathToFollow = path;
+        this.currentPathIndex = 0;
+        
+        // パスの可視化
+        this.createPathMarkers();
+        
+        // 初期方向を設定（移動の開始をスムーズに）
+        if (path.length > 1) {
+          this.player.prepareNextDirection(path[0], path[1]);
+        }
+      } else {
+        // パスが見つからなかった場合はエフェクトを赤色に
+        this.showClickEffect(targetPoint, 0xff0000);
+        return; // 移動を開始しない
+      }
+      
+      // 移動先を視覚的に示すためのエフェクト
       this.showClickEffect(targetPoint);
     }
   }
 
-  // 移動先を示すエフェクトを表示（オプション実装）
-  private showClickEffect(position: THREE.Vector3): void {
+  // パスの可視化マーカーを作成
+  private createPathMarkers(): void {
+    this.clearPathMarkers(); // 既存のマーカーをクリア
+    
+    if (!this.showPath) return; // パス表示がオフの場合は何もしない
+    
+    // マーカーのマテリアル
+    const markerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 0.5
+    });
+    
+    // パスの各ポイントにマーカーを配置
+    for (let i = 0; i < this.pathToFollow.length; i++) {
+      const point = this.pathToFollow[i];
+      
+      // マーカーのジオメトリ（小さい円柱）
+      const markerGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16);
+      const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+      
+      marker.position.copy(point);
+      marker.position.y = 0.05; // 地面のすぐ上に表示
+      
+      this.scene.add(marker);
+      this.pathMarkers.push(marker);
+    }
+    
+    // 終点のマーカーは少し大きく、色も変える
+    if (this.pathMarkers.length > 0) {
+      const lastMarker = this.pathMarkers[this.pathMarkers.length - 1] as THREE.Mesh;
+      lastMarker.scale.set(1.5, 1, 1.5);
+      (lastMarker.material as THREE.MeshBasicMaterial).color.set(0xff0000);
+    }
+  }
+
+  // パスマーカーを削除
+  private clearPathMarkers(): void {
+    for (const marker of this.pathMarkers) {
+      this.scene.remove(marker);
+    }
+    this.pathMarkers = [];
+  }
+
+  // パスをクリア
+  private clearPath(): void {
+    this.pathToFollow = [];
+    this.currentPathIndex = 0;
+    this.clearPathMarkers();
+  }
+
+  // 経路を再計算
+  private recalculatePath(): void {
+    if (!this.player || !this.pathFindingSystem || !this.targetPosition || this.pathToFollow.length === 0) return;
+    
+    // 経路再計算を試みる
+    const startPos = this.player.getPosition();
+    
+    // 現在の障害物との衝突位置を避けるため、少し離れた位置から計算を開始
+    const currentPathIndex = Math.min(this.currentPathIndex, this.pathToFollow.length - 1);
+    const directionToNextPoint = new THREE.Vector3().subVectors(
+      this.pathToFollow[currentPathIndex], 
+      startPos
+    ).normalize();
+    
+    // 今プレイヤーがいる場所はおそらく障害物と衝突しているので、
+    // 衝突判定が起きた方向から少し離れた位置から計算しなおす
+    const offsetStartPos = startPos.clone().sub(directionToNextPoint.multiplyScalar(0.5));
+    
+    // 新しい経路を探索
+    const path = this.pathFindingSystem.findPath(offsetStartPos, this.targetPosition);
+    
+    // パスが見つかった場合は新しいパスを使用
+    if (path.length > 0) {
+      this.pathToFollow = path;
+      this.currentPathIndex = 0;
+      
+      // パスの可視化を更新
+      this.createPathMarkers();
+      console.log("経路を再計算しました");
+    } else {
+      // パスが見つからない場合は、目標地点へより慎重に近づくか、別のアプローチを試す
+      console.log("経路再計算に失敗しました。直接移動を試みます");
+      
+      // 現在のパスをクリア
+      this.clearPath();
+      
+      // 目標地点に直接向かう（フォールバックメカニズム）
+      // 次の更新サイクルで直線移動処理が行われる
+    }
+  }
+
+  // 移動先を示すエフェクトを表示
+  private showClickEffect(position: THREE.Vector3, color: number = 0x00ff00): void {
     // 既存のエフェクトがあれば削除
     const existingEffect = this.scene.getObjectByName('moveTargetEffect');
     if (existingEffect) {
@@ -183,7 +427,7 @@ export class PlayerSystem {
     // シンプルなエフェクト（円形のジオメトリ）
     const geometry = new THREE.RingGeometry(0.5, 0.7, 32);
     const material = new THREE.MeshBasicMaterial({ 
-      color: 0x00ff00,
+      color: color, // 引数で色を指定できるように変更
       transparent: true,
       opacity: 0.7,
       side: THREE.DoubleSide
@@ -196,6 +440,23 @@ export class PlayerSystem {
     effect.rotation.x = -Math.PI / 2; // 水平に寝かせる
     
     this.scene.add(effect);
+    
+    // アニメーション効果を追加（拡大・縮小）
+    const startScale = 0.5;
+    effect.scale.set(startScale, startScale, startScale);
+    
+    // 拡大アニメーション
+    const animateScale = () => {
+      effect.scale.x += 0.05;
+      effect.scale.y += 0.05;
+      effect.scale.z += 0.05;
+      
+      if (effect.scale.x <= 1.2) {
+        requestAnimationFrame(animateScale);
+      }
+    };
+    
+    animateScale();
     
     // 1秒後にエフェクトを削除
     setTimeout(() => {
@@ -218,8 +479,12 @@ export class PlayerSystem {
     // 現在のカメラ位置から目標位置へ滑らかに移動（線形補間）
     this.camera.position.lerp(targetCameraPosition, this.cameraLerpFactor);
     
-    // カメラの注視点をプレイヤーに設定
-    this.camera.lookAt(playerPosition);
+    // カメラの注視点を固定方向に設定（回転を防止）
+    const lookAtPoint = playerPosition.clone();
+    this.camera.lookAt(lookAtPoint);
+    
+    // カメラの向きを固定
+    this.camera.rotation.z = 0; // Z軸の回転を0に保つ
     
     // オルソグラフィックカメラの投影行列を更新
     if (this.camera instanceof THREE.OrthographicCamera) {
