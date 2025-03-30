@@ -17,6 +17,7 @@ export class PlayerSystem {
   private currentPathIndex: number = 0; // 現在のパスのインデックス
   private pathMarkers: THREE.Object3D[] = []; // パスを可視化するマーカー
   private showPath: boolean = true; // パスを可視化するかどうかのフラグ
+  private consecutiveCollisions: number | undefined = undefined; // 連続衝突回数
 
   constructor(private scene: THREE.Scene, private camera: THREE.Camera) {
     // キー入力のイベントリスナーを設定
@@ -59,6 +60,7 @@ export class PlayerSystem {
 
     // 現在位置を保存（衝突判定後に戻すため）
     const oldPosition = this.player.mesh.position.clone();
+    let movementOccurred = false;
 
     // キーボードによる移動処理（開発中の利便性のために残しておく）
     const keyboardMoveSpeed = 10 * deltaTime;
@@ -66,18 +68,22 @@ export class PlayerSystem {
     if (this.keyState['w'] || this.keyState['ArrowUp']) {
       this.player.moveForward(keyboardMoveSpeed);
       this.clearPath(); // キー入力があった場合、パスをリセット
+      movementOccurred = true;
     }
     if (this.keyState['s'] || this.keyState['ArrowDown']) {
       this.player.moveBackward(keyboardMoveSpeed);
       this.clearPath(); // キー入力があった場合、パスをリセット
+      movementOccurred = true;
     }
     if (this.keyState['a'] || this.keyState['ArrowLeft']) {
       this.player.moveLeft(keyboardMoveSpeed);
       this.clearPath(); // キー入力があった場合、パスをリセット
+      movementOccurred = true;
     }
     if (this.keyState['d'] || this.keyState['ArrowRight']) {
       this.player.moveRight(keyboardMoveSpeed);
       this.clearPath(); // キー入力があった場合、パスをリセット
+      movementOccurred = true;
     }
 
     // パス追跡による移動処理
@@ -173,15 +179,71 @@ export class PlayerSystem {
     if (this.levelSystem) {
       const playerBoundingBox = this.player.mesh.userData.boundingBox;
       if (this.levelSystem.checkWallCollision(playerBoundingBox)) {
-        // 壁と衝突している場合は位置を元に戻す
-        this.player.mesh.position.copy(oldPosition);
-        this.player.update(0); // バウンディングボックスを更新
-        
-        // 経路再計算が必要な場合（パスに沿って移動中に衝突した場合）
-        if (this.pathToFollow.length > 0) {
-          // 少し遅延させて再計算を試みる（数フレーム連続で衝突しないようにするため）
-          setTimeout(() => this.recalculatePath(), 100);
+        // 移動が発生した場合のみ衝突チェックを行う
+        if (movementOccurred) {
+          // 移動ベクトルを計算（現在位置 - 前回の位置）
+          const moveVector = new THREE.Vector3().subVectors(this.player.mesh.position, oldPosition);
+          
+          // 壁から離れる方向への移動かどうかを判定
+          const walls = this.levelSystem.getWalls();
+          let nearestWall: THREE.Object3D | null = null;
+          let minDistance = Number.MAX_VALUE;
+          
+          for (const wall of walls) {
+            const wallBox = wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
+            const wallCenter = new THREE.Vector3();
+            wallBox.getCenter(wallCenter);
+            
+            const distanceToWall = this.player.mesh.position.distanceTo(wallCenter);
+            if (distanceToWall < minDistance) {
+              minDistance = distanceToWall;
+              nearestWall = wall;
+            }
+          }
+          
+          if (nearestWall) {
+            const wallBox = nearestWall.userData.boundingBox || new THREE.Box3().setFromObject(nearestWall);
+            const wallCenter = new THREE.Vector3();
+            wallBox.getCenter(wallCenter);
+            
+            // プレイヤーから壁の中心への方向ベクトル
+            const toWall = new THREE.Vector3().subVectors(wallCenter, this.player.mesh.position).normalize();
+            // 移動方向と壁への方向のドット積
+            const dot = moveVector.normalize().dot(toWall);
+            
+            // 壁から離れる方向への移動（ドット積が負）の場合は許可
+            if (dot < 0) {
+              // 移動を許可（位置を戻さない）
+              this.player.update(0); // バウンディングボックスを更新
+            } else {
+              // 壁に近づく移動は禁止（位置を戻す）
+              this.player.mesh.position.copy(oldPosition);
+              this.player.update(0); // バウンディングボックスを更新
+              
+              if (this.consecutiveCollisions === undefined) {
+                this.consecutiveCollisions = 0;
+              }
+              this.consecutiveCollisions++;
+              
+              if (this.consecutiveCollisions > 5) {
+                console.log("プレイヤーが危険な位置にいます。安全な位置を探します。");
+                this.findAndMoveToSafePosition();
+                this.consecutiveCollisions = 0;
+              }
+              
+              if (this.pathToFollow.length > 0) {
+                setTimeout(() => this.recalculatePath(), 100);
+              }
+            }
+          }
+        } else {
+          // 移動がない場合は通常通り位置を戻す
+          this.player.mesh.position.copy(oldPosition);
+          this.player.update(0);
         }
+      } else {
+        // 衝突していない場合はカウンターをリセット
+        this.consecutiveCollisions = 0;
       }
 
       // 出口との衝突判定
@@ -670,5 +732,89 @@ export class PlayerSystem {
   // プレイヤーの参照を取得
   public getPlayer(): Player | null {
     return this.player;
+  }
+
+  // プレイヤーが危険な位置にいる場合、安全な位置に移動させる
+  private findAndMoveToSafePosition(): void {
+    if (!this.player || !this.pathFindingSystem || !this.levelSystem) return;
+
+    const currentPos = this.player.getPosition();
+    const walls = this.levelSystem.getWalls();
+    const safeDistance = 1.5; // 壁からの安全距離
+
+    // プレイヤーの周囲の点をチェック
+    const checkPoints: THREE.Vector3[] = [];
+    const angleStep = Math.PI / 8; // 22.5度ごとに点を生成
+    
+    // 複数の半径で点を生成（近い位置から順にチェック）
+    const radiusSteps = [2, 3, 4, 5];
+    for (const radius of radiusSteps) {
+      for (let angle = 0; angle < Math.PI * 2; angle += angleStep) {
+        const x = currentPos.x + Math.cos(angle) * radius;
+        const z = currentPos.z + Math.sin(angle) * radius;
+        checkPoints.push(new THREE.Vector3(x, 0, z));
+      }
+    }
+
+    // 最も安全な位置を探す
+    let bestPoint: THREE.Vector3 | null = null;
+    let maxSafetyScore = -Infinity;
+
+    for (const point of checkPoints) {
+      let isSafe = true;
+      let minWallDistance = Infinity;
+
+      // 点の安全性をチェック
+      const pointBox = new THREE.Box3().setFromCenterAndSize(
+        point,
+        new THREE.Vector3(1.0, 1.0, 1.0)
+      );
+
+      for (const wall of walls) {
+        const wallBox = wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
+        if (wallBox.intersectsBox(pointBox)) {
+          isSafe = false;
+          break;
+        }
+
+        // 壁からの距離を計算
+        const distance = point.distanceTo(new THREE.Vector3(
+          (wallBox.min.x + wallBox.max.x) / 2,
+          0,
+          (wallBox.min.z + wallBox.max.z) / 2
+        ));
+        minWallDistance = Math.min(minWallDistance, distance);
+      }
+
+      if (isSafe) {
+        // 安全スコアの計算：壁からの距離と現在位置からの距離のバランス
+        const distanceFromCurrent = point.distanceTo(currentPos);
+        const safetyScore = minWallDistance - (distanceFromCurrent * 0.5); // 現在位置からあまり遠くならないように調整
+
+        if (safetyScore > maxSafetyScore) {
+          maxSafetyScore = safetyScore;
+          bestPoint = point.clone();
+        }
+      }
+    }
+
+    // 安全な位置が見つかった場合、そこへ移動
+    if (bestPoint) {
+      const path = this.pathFindingSystem.findPath(currentPos, bestPoint);
+      if (path.length > 0) {
+        console.log("安全な位置への経路が見つかりました。移動を開始します。");
+        this.clearPath();
+        this.pathToFollow = path;
+        this.currentPathIndex = 0;
+        this.createPathMarkers();
+        this.showClickEffect(bestPoint, 0x00ffff); // シアン色でエフェクトを表示
+      } else {
+        // パスが見つからない場合は直接移動を試みる
+        console.log("安全な位置への直接移動を試みます。");
+        this.targetPosition = bestPoint;
+      }
+    } else {
+      console.log("安全な位置が見つかりませんでした。");
+    }
   }
 }
