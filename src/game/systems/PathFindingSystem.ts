@@ -178,75 +178,6 @@ export class PathFindingSystem {
     this.updateRequired = true;
   }
   
-  // A*アルゴリズムでパスを探索
-  public findPath(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
-    // グリッドの更新が必要な場合は更新
-    if (this.updateRequired) {
-      this.updateGrid();
-    }
-    
-    // 開始点と終了点をグリッド座標に変換
-    const startGridPos = this.grid.worldToGrid(startWorldPos.x, startWorldPos.z);
-    const endGridPos = this.grid.worldToGrid(endWorldPos.x, endWorldPos.z);
-    
-    const startNode = this.grid.getNode(startGridPos.x, startGridPos.y);
-    const targetNode = this.grid.getNode(endGridPos.x, endGridPos.y);
-    
-    if (!startNode || !targetNode) {
-      console.log("無効な開始点または終了点です");
-      this.lastPathfindingSuccess = false;
-      return this.getFallbackPath(startWorldPos, endWorldPos);
-    }
-    
-    // プレイヤーのサイズを考慮した安全マージンの設定
-    const playerSize = 1.0;
-    const safetyMargin = Math.ceil(playerSize / 2); // 少し緩和
-    
-    // 目標地点が移動不可能な場合、近くの移動可能な場所を探す
-    if (!targetNode.isWalkable) {
-      console.log("目標地点が障害物内です。近くの移動可能な場所を探しています...");
-      const alternativeTarget = this.findNearestWalkableNode(targetNode, safetyMargin);
-      if (alternativeTarget) {
-        console.log("代替目標地点が見つかりました");
-        const path = this.aStarSearch(startNode, alternativeTarget, safetyMargin);
-        if (path.length > 0) {
-          this.lastPathfindingSuccess = true;
-          this.pathfindingFailureCount = 0;
-          return this.optimizePath(path, startWorldPos, endWorldPos);
-        }
-      }
-      console.log("近くに移動可能な場所が見つかりませんでした");
-      this.lastPathfindingSuccess = false;
-      this.pathfindingFailureCount++;
-      return this.getFallbackPath(startWorldPos, endWorldPos);
-    }
-    
-    // A*アルゴリズムでパスを探索
-    const path = this.aStarSearch(startNode, targetNode, safetyMargin);
-    
-    if (path.length === 0) {
-      console.log("経路が見つかりませんでした。代替経路を試みます...");
-      this.lastPathfindingSuccess = false;
-      this.pathfindingFailureCount++;
-      
-      // 代替経路を試みる：安全マージンを減らして再試行
-      if (safetyMargin > 0) {
-        const reducedMarginPath = this.aStarSearch(startNode, targetNode, Math.max(0, safetyMargin - 1));
-        if (reducedMarginPath.length > 0) {
-          console.log("安全マージンを減らして経路を見つけました");
-          this.pathfindingFailureCount = 0;
-          return this.optimizePath(reducedMarginPath, startWorldPos, endWorldPos);
-        }
-      }
-      
-      return this.getFallbackPath(startWorldPos, endWorldPos);
-    }
-    
-    this.lastPathfindingSuccess = true;
-    this.pathfindingFailureCount = 0;
-    return this.optimizePath(path, startWorldPos, endWorldPos);
-  }
-  
   // フォールバックパスの生成（経路探索失敗時）
   private getFallbackPath(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
     console.log("フォールバック経路を使用します");
@@ -276,88 +207,406 @@ export class PathFindingSystem {
     return fallbackPath;
   }
   
-  // パスの最適化
-  private optimizePath(path: THREE.Vector3[], startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
-    if (path.length === 0) return [];
-    
-    // パスの先頭と末尾を実際の開始点と終了点に置き換え
-    if (path.length >= 2) {
-      path[0] = startWorldPos.clone();
-      path[path.length - 1] = endWorldPos.clone();
+// A*アルゴリズムの実装
+private aStarSearch(startNode: GridNode, targetNode: GridNode, safetyMargin: number = 0): THREE.Vector3[] {
+  const openSet: GridNode[] = [];
+  const closedSet: Set<GridNode> = new Set();
+  
+  // ノードをリセット
+  const gridDimensions = this.grid.getDimensions();
+  for (let x = 0; x < gridDimensions.width; x++) {
+    for (let y = 0; y < gridDimensions.height; y++) {
+      const node = this.grid.getNode(x, y);
+      if (node) {
+        node.gCost = 0;
+        node.hCost = 0;
+        node.parent = null;
+      }
     }
-    
-    // スムージングとファネリングを適用
-    const smoothedPath = this.smoothPath(path);
-    return this.applyFunnelAlgorithm(smoothedPath);
   }
   
-  // A*アルゴリズムの実装
-  private aStarSearch(startNode: GridNode, targetNode: GridNode, safetyMargin: number = 0): THREE.Vector3[] {
-    const openSet: GridNode[] = [];
-    const closedSet: Set<GridNode> = new Set();
+  // スタートノードを開始点として追加
+  startNode.gCost = 0;
+  startNode.hCost = this.getDistance(startNode, targetNode);
+  openSet.push(startNode);
+  
+  while (openSet.length > 0) {
+    // F値が最も低いノードを取得
+    let currentNode = openSet[0];
+    let currentIndex = 0;
     
-    // スタートノードを開始点として追加
-    openSet.push(startNode);
-    
-    while (openSet.length > 0) {
-      // F値が最も低いノードを取得
-      let currentNode = openSet[0];
-      let currentIndex = 0;
-      
-      for (let i = 1; i < openSet.length; i++) {
-        if (openSet[i].fCost < currentNode.fCost || 
-            (openSet[i].fCost === currentNode.fCost && openSet[i].hCost < currentNode.hCost)) {
-          currentNode = openSet[i];
-          currentIndex = i;
-        }
-      }
-      
-      // 現在のノードをオープンセットから削除し、クローズドセットに追加
-      openSet.splice(currentIndex, 1);
-      closedSet.add(currentNode);
-      
-      // 目標に到達した場合、パスを構築して返す
-      if (currentNode === targetNode) {
-        return this.retracePath(startNode, targetNode);
-      }
-      
-      // 隣接ノードを処理
-      const neighbors = this.grid.getNeighbors(currentNode);
-      
-      for (const neighbor of neighbors) {
-        if (closedSet.has(neighbor)) continue;
-        
-        // プレイヤーのサイズに基づく安全マージンを考慮する
-        // 障害物の近くのノードは避ける（プレイヤーのサイズがあるため）
-        if (safetyMargin > 0 && !this.isNodeSafe(neighbor, safetyMargin)) {
-          continue; // 安全マージン内に障害物があるノードはスキップ
-        }
-        
-        // 移動コストを計算（斜め移動の場合は√2、直線移動の場合は1）
-        const isDiagonal = currentNode.x !== neighbor.x && currentNode.y !== neighbor.y;
-        const movementCost = isDiagonal ? 1.414 : 1;
-        
-        const newGCost = currentNode.gCost + movementCost;
-        
-        // このパスが既知のパスより良いか、またはノードがオープンセットにない場合
-        if (newGCost < neighbor.gCost || !openSet.includes(neighbor)) {
-          neighbor.gCost = newGCost;
-          neighbor.hCost = this.getDistance(neighbor, targetNode);
-          neighbor.parent = currentNode;
-          
-          if (!openSet.includes(neighbor)) {
-            openSet.push(neighbor);
-          }
-        }
+    for (let i = 1; i < openSet.length; i++) {
+      if (openSet[i].fCost < currentNode.fCost || 
+          (openSet[i].fCost === currentNode.fCost && openSet[i].hCost < currentNode.hCost)) {
+        currentNode = openSet[i];
+        currentIndex = i;
       }
     }
     
-    // パスが見つからなかった場合は空の配列を返す
-    return [];
+    // 現在のノードをオープンセットから削除し、クローズドセットに追加
+    openSet.splice(currentIndex, 1);
+    closedSet.add(currentNode);
+    
+    // 目標に到達した場合、パスを構築して返す
+    if (currentNode === targetNode) {
+      return this.retracePath(startNode, targetNode);
+    }
+    
+    // 隣接ノードを処理
+    const neighbors = this.grid.getNeighbors(currentNode);
+    
+    for (const neighbor of neighbors) {
+      if (closedSet.has(neighbor)) continue;
+      
+      // 安全マージンを考慮する（値を小さくする）
+      const clearanceScore = this.getNodeClearanceScore(neighbor);
+      if (clearanceScore < safetyMargin) {
+        continue; // 安全マージン未満のノードはスキップ
+      }
+      
+      // 移動コストを計算（斜め移動の場合は√2、直線移動の場合は1）
+      const isDiagonal = currentNode.x !== neighbor.x && currentNode.y !== neighbor.y;
+      let movementCost = isDiagonal ? 1.414 : 1;
+      
+      // クリアランススコアに基づくペナルティを小さくする
+      // 壁に非常に近い場合のみ少しペナルティを追加
+      const clearancePenalty = (clearanceScore <= 1) ? 0.2 : 0;
+      movementCost += clearancePenalty;
+      
+      const newGCost = currentNode.gCost + movementCost;
+      
+      // このパスが既知のパスより良いか、またはノードがオープンセットにない場合
+      if (newGCost < neighbor.gCost || !openSet.includes(neighbor)) {
+        neighbor.gCost = newGCost;
+        // ヒューリスティック関数の重みを少し調整して最短経路を優先
+        neighbor.hCost = this.getDistance(neighbor, targetNode) * 1.1; // ヒューリスティックの重みを調整
+        neighbor.parent = currentNode;
+        
+        if (!openSet.includes(neighbor)) {
+          openSet.push(neighbor);
+        }
+      }
+    }
   }
   
-  // 2つのノード間の距離（ヒューリスティック関数）
-  private getDistance(nodeA: GridNode, nodeB: GridNode): number {
+  // パスが見つからなかった場合は空の配列を返す
+  return [];
+}
+
+// ノードのクリアランススコアを計算（壁からの距離）
+private getNodeClearanceScore(node: GridNode): number {
+  let minDistance = Number.MAX_SAFE_INTEGER;
+  
+  // ノード周辺の検査範囲
+  const checkRange = 3;
+  
+  for (let x = -checkRange; x <= checkRange; x++) {
+    for (let y = -checkRange; y <= checkRange; y++) {
+      if (x === 0 && y === 0) continue;
+      
+      const checkX = node.x + x;
+      const checkY = node.y + y;
+      
+      const checkNode = this.grid.getNode(checkX, checkY);
+      if (!checkNode || !checkNode.isWalkable) {
+        // 壁までのマンハッタン距離を計算
+        const distance = Math.abs(x) + Math.abs(y);
+        minDistance = Math.min(minDistance, distance);
+      }
+    }
+  }
+  
+  return minDistance === Number.MAX_SAFE_INTEGER ? checkRange : minDistance;
+}
+
+// 最終的なパスを構築（ノードの親を辿る）
+private retracePath(startNode: GridNode, endNode: GridNode): THREE.Vector3[] {
+  const path: THREE.Vector3[] = [];
+  let currentNode: GridNode | null = endNode;
+  
+  while (currentNode && currentNode !== startNode) {
+    const worldPos = this.grid.gridToWorld(currentNode.x, currentNode.y);
+    path.push(new THREE.Vector3(worldPos.x, 0, worldPos.z));
+    currentNode = currentNode.parent;
+  }
+  
+  // 開始点を追加
+  const startWorldPos = this.grid.gridToWorld(startNode.x, startNode.y);
+  path.push(new THREE.Vector3(startWorldPos.x, 0, startWorldPos.z));
+  
+  // パスの順序を反転（スタートからエンドの順に）
+  return path.reverse();
+}
+
+// パスの最適化（直線的に移動できる部分は中間ノードを省略）
+private smoothPath(path: THREE.Vector3[]): THREE.Vector3[] {
+  if (path.length <= 2) return path;
+  
+  const smoothedPath: THREE.Vector3[] = [path[0]];
+  let current = 0;
+  
+  while (current < path.length - 1) {
+    // 現在位置から最も遠い安全な可視点を探す
+    let lastSafeIndex = current + 1;
+    
+    // 通常の可視チェックよりも厳格なチェックを適用
+    for (let i = current + 1; i < path.length; i++) {
+      if (this.isSafePath(path[current], path[i])) {
+        lastSafeIndex = i;
+      } else {
+        break; // 安全でない点が見つかったら探索終了
+      }
+    }
+    
+    // 次の点として最も遠い安全な可視点を追加
+    current = lastSafeIndex;
+    if (current < path.length) {
+      smoothedPath.push(path[current]);
+    }
+  }
+  
+  return smoothedPath;
+}
+
+// 2点間の経路が安全かどうかを厳格にチェック
+private isSafePath(start: THREE.Vector3, end: THREE.Vector3): boolean {
+  // 距離が非常に近い場合は常にtrueを返す
+  const distance = start.distanceTo(end);
+  if (distance < 0.5) return true;
+  
+  // 2点間の線分上で複数のポイントをチェック
+  const checkPoints = 5; // チェックポイント数
+  const direction = new THREE.Vector3().subVectors(end, start).normalize();
+  
+  for (let i = 1; i < checkPoints; i++) {
+    const t = i / checkPoints;
+    const checkPoint = new THREE.Vector3()
+      .addVectors(start, new THREE.Vector3().copy(direction).multiplyScalar(distance * t));
+    
+    // グリッド上の位置を取得
+    const gridPos = this.grid.worldToGrid(checkPoint.x, checkPoint.z);
+    const node = this.grid.getNode(gridPos.x, gridPos.y);
+    
+    // ノードが歩行不能か、安全マージンが不足している場合
+    if (!node || !node.isWalkable || this.getNodeClearanceScore(node) < 1.5) {
+      return false;
+    }
+    
+    // 壁との衝突チェック（レイキャスト）
+    const rayStart = new THREE.Vector3(checkPoint.x, 1, checkPoint.z); // 高さを少し上げる
+    const rayDirection = new THREE.Vector3(0, -1, 0); // 下向きのレイ
+    const ray = new THREE.Raycaster(rayStart, rayDirection, 0, 2);
+    const intersections = ray.intersectObjects(this.levelSystem.getWalls(), true);
+    
+    if (intersections.length > 0) {
+      return false; // 障害物と交差
+    }
+  }
+  
+  return true;
+}
+
+// ファネリングアルゴリズムの適用（より自然なパスを生成）
+private applyFunnelAlgorithm(path: THREE.Vector3[]): THREE.Vector3[] {
+  if (path.length <= 2) return path;
+  
+  const funnelPath: THREE.Vector3[] = [path[0]];
+  let apex = path[0].clone();
+  let lastDirection = new THREE.Vector3();
+  
+  for (let i = 1; i < path.length; i++) {
+    const current = path[i];
+    
+    // 現在地点からの方向ベクトル
+    const dirToCurrent = new THREE.Vector3().subVectors(current, apex).normalize();
+    
+    // 前回の方向との角度を計算
+    if (i > 1) {
+      const angle = dirToCurrent.angleTo(lastDirection);
+      
+      // 角度変化が一定以上の場合、または壁に近い場合、中間点を追加
+      if (angle > Math.PI / 8 || // 22.5度以上の曲がり角
+          i % 3 === 0) { // 定期的に中間点を追加（より細かい経路用）
+        funnelPath.push(path[i-1]);
+        apex = path[i-1].clone();
+      }
+    }
+    
+    lastDirection = dirToCurrent;
+  }
+  
+  // 最後の点を追加
+  funnelPath.push(path[path.length - 1]);
+  
+  // 追加の平滑化：急な角度変化を滑らかにする
+  return this.addCornerRounding(funnelPath);
+}
+
+// コーナーの丸め処理を追加（経路をより滑らかにする）
+private addCornerRounding(path: THREE.Vector3[]): THREE.Vector3[] {
+  if (path.length <= 2) return path;
+  
+  const roundedPath: THREE.Vector3[] = [path[0]];
+  
+  for (let i = 1; i < path.length - 1; i++) {
+    const prev = path[i - 1];
+    const current = path[i];
+    const next = path[i + 1];
+    
+    // 現在の点とその前後の点から角度を計算
+    const v1 = new THREE.Vector3().subVectors(current, prev).normalize();
+    const v2 = new THREE.Vector3().subVectors(next, current).normalize();
+    const angle = v1.angleTo(v2);
+    
+    // 角度が大きい場合（鋭角なコーナー）、補間点を追加
+    if (angle > Math.PI / 4) { // 45度以上の角度
+      // コーナーの前に補間点を追加
+      const beforeCorner = new THREE.Vector3().copy(current).sub(v1.multiplyScalar(0.3));
+      roundedPath.push(beforeCorner);
+      
+      // コーナー点自体を追加
+      roundedPath.push(current);
+      
+      // コーナーの後に補間点を追加
+      const afterCorner = new THREE.Vector3().copy(current).add(new THREE.Vector3().copy(v2).multiplyScalar(0.3));
+      roundedPath.push(afterCorner);
+    } else {
+      // 普通のコーナーはそのまま追加
+      roundedPath.push(current);
+    }
+  }
+  
+  // 最後の点を追加
+  roundedPath.push(path[path.length - 1]);
+  
+  return roundedPath;
+}
+
+// 経路探索のエントリーポイント
+public findPath(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
+  // グリッドの更新が必要な場合は更新
+  if (this.updateRequired) {
+    this.updateGrid();
+  }
+  
+  // 開始点と終了点をグリッド座標に変換
+  const startGridPos = this.grid.worldToGrid(startWorldPos.x, startWorldPos.z);
+  const endGridPos = this.grid.worldToGrid(endWorldPos.x, endWorldPos.z);
+  
+  const startNode = this.grid.getNode(startGridPos.x, startGridPos.y);
+  const targetNode = this.grid.getNode(endGridPos.x, endGridPos.y);
+  
+  if (!startNode || !targetNode) {
+    console.log("無効な開始点または終了点です");
+    this.lastPathfindingSuccess = false;
+    return this.getFallbackPath(startWorldPos, endWorldPos);
+  }
+  
+  // キャラクターのサイズを考慮した安全マージン（値を小さくする）
+  const playerSize = 0.8; // キャラクターサイズを小さく
+  const baseMargin = Math.ceil(playerSize / 2);
+  const safetyMargin = baseMargin; // 追加マージンを削除
+  
+  // 目標地点が移動不可能な場合、近くの移動可能な場所を探す
+  if (!targetNode.isWalkable || this.getNodeClearanceScore(targetNode) < safetyMargin) {
+    console.log("目標地点が障害物内または障害物に近すぎます。代替目標を探しています...");
+    const alternativeTarget = this.findNearestWalkableNode(targetNode, safetyMargin);
+    if (alternativeTarget) {
+      console.log("代替目標地点が見つかりました");
+      const path = this.aStarSearch(startNode, alternativeTarget, safetyMargin);
+      if (path.length > 0) {
+        this.lastPathfindingSuccess = true;
+        this.pathfindingFailureCount = 0;
+        
+        // パスの最後の点を元々の目標点に置き換え
+        if (path.length > 1) {
+          path[path.length - 1] = new THREE.Vector3(endWorldPos.x, 0, endWorldPos.z);
+        }
+        
+        return this.optimizePath(path, startWorldPos, endWorldPos);
+      }
+    }
+    
+    console.log("近くに移動可能な場所が見つかりませんでした");
+    this.lastPathfindingSuccess = false;
+    this.pathfindingFailureCount++;
+    return this.getFallbackPath(startWorldPos, endWorldPos);
+  }
+  
+  // A*アルゴリズムでパスを探索
+  const path = this.aStarSearch(startNode, targetNode, safetyMargin);
+  
+  if (path.length === 0) {
+    console.log("経路が見つかりませんでした。代替経路を試みます...");
+    this.lastPathfindingSuccess = false;
+    this.pathfindingFailureCount++;
+    
+    // 代替経路を試みる：安全マージンを減らして再試行
+    if (safetyMargin > 0) {
+      const reducedMarginPath = this.aStarSearch(startNode, targetNode, 0); // マージンを0に設定
+      if (reducedMarginPath.length > 0) {
+        console.log("安全マージンを減らして経路を見つけました");
+        this.pathfindingFailureCount = 0;
+        return this.optimizePath(reducedMarginPath, startWorldPos, endWorldPos);
+      }
+    }
+    
+    return this.getFallbackPath(startWorldPos, endWorldPos);
+  }
+  
+  this.lastPathfindingSuccess = true;
+  this.pathfindingFailureCount = 0;
+  return this.optimizePath(path, startWorldPos, endWorldPos);
+}
+
+// パスの最適化
+private optimizePath(path: THREE.Vector3[], startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
+  if (path.length === 0) return [];
+  
+  // パスの先頭と末尾を実際の開始点と終了点に置き換え
+  if (path.length >= 2) {
+    path[0] = startWorldPos.clone();
+    path[path.length - 1] = endWorldPos.clone();
+  }
+  
+  // スムージングとファネリングの実行
+  const smoothedPath = this.smoothPath(path);
+  const funnelledPath = this.applyFunnelAlgorithm(smoothedPath);
+  
+  // 最終的な経路に適度な中間点を追加して滑らかさを向上
+  return this.ensurePathDensity(funnelledPath);
+}
+
+// 経路の密度を保証（長い直線部分に中間点を追加）
+private ensurePathDensity(path: THREE.Vector3[]): THREE.Vector3[] {
+  if (path.length <= 1) return path;
+  
+  const maxSegmentLength = 2.0; // 最大セグメント長
+  const densePath: THREE.Vector3[] = [path[0]];
+  
+  for (let i = 0; i < path.length - 1; i++) {
+    const start = path[i];
+    const end = path[i + 1];
+    const distance = start.distanceTo(end);
+    
+    // セグメントが長すぎる場合、中間点を追加
+    if (distance > maxSegmentLength) {
+      const segments = Math.ceil(distance / maxSegmentLength);
+      for (let j = 1; j < segments; j++) {
+        const t = j / segments;
+        const intermediatePoint = new THREE.Vector3().lerpVectors(start, end, t);
+        densePath.push(intermediatePoint);
+      }
+    }
+    
+    densePath.push(end);
+  }
+  
+  return densePath;
+}
+
+// 2つのノード間の距離（ヒューリスティック関数）
+private getDistance(nodeA: GridNode, nodeB: GridNode): number {
     const distX = Math.abs(nodeA.x - nodeB.x);
     const distY = Math.abs(nodeA.y - nodeB.y);
     
@@ -365,21 +614,6 @@ export class PathFindingSystem {
     return (distX > distY) ? 
       1.414 * distY + (distX - distY) : 
       1.414 * distX + (distY - distX);
-  }
-  
-  // 最終的なパスを構築（ノードの親を辿る）
-  private retracePath(startNode: GridNode, endNode: GridNode): THREE.Vector3[] {
-    const path: THREE.Vector3[] = [];
-    let currentNode: GridNode | null = endNode;
-    
-    while (currentNode && currentNode !== startNode) {
-      const worldPos = this.grid.gridToWorld(currentNode.x, currentNode.y);
-      path.push(new THREE.Vector3(worldPos.x, 0, worldPos.z));
-      currentNode = currentNode.parent;
-    }
-    
-    // パスの順序を反転（スタートからエンドの順に）
-    return path.reverse();
   }
   
   // 移動不可能なノードの近くで移動可能なノードを探す
@@ -446,94 +680,6 @@ export class PathFindingSystem {
     }
     
     return true; // マージン内に障害物なし
-  }
-  
-  // パスの最適化（直線的に移動できる部分は中間ノードを省略）
-  private smoothPath(path: THREE.Vector3[]): THREE.Vector3[] {
-    if (path.length <= 2) return path;
-    
-    const smoothedPath: THREE.Vector3[] = [path[0]];
-    let current = 0;
-    
-    while (current < path.length - 1) {
-      // 現在位置から最も遠い可視点を探す
-      let farthestVisible = current + 1;
-      
-      for (let i = path.length - 1; i > current; i--) {
-        if (this.hasLineOfSight(path[current], path[i])) {
-          farthestVisible = i;
-          break;
-        }
-      }
-      
-      // 次の点として最も遠い可視点を追加
-      current = farthestVisible;
-      if (current < path.length) {
-        smoothedPath.push(path[current]);
-      }
-    }
-    
-    return smoothedPath;
-  }
-  
-  // ファネリングアルゴリズムの適用（より自然なパスを生成）
-  private applyFunnelAlgorithm(path: THREE.Vector3[]): THREE.Vector3[] {
-    if (path.length <= 2) return path;
-    
-    // ファネルアルゴリズムの簡略版実装
-    const funnelPath: THREE.Vector3[] = [path[0]];
-    let apex = path[0].clone();
-    
-    for (let i = 1; i < path.length - 1; i++) {
-      const current = path[i];
-      const next = path[i + 1];
-      
-      // 現在地点から次の2点への方向ベクトル
-      const dirToCurrent = new THREE.Vector3().subVectors(current, apex).normalize();
-      const dirToNext = new THREE.Vector3().subVectors(next, apex).normalize();
-      
-      // 2つのベクトル間の角度を計算
-      const angle = dirToCurrent.angleTo(dirToNext);
-      
-      // 角度が大きい場合（鋭角な曲がり角）、現在地点をパスに追加
-      if (angle > Math.PI / 6) { // 30度以上の曲がり角
-        funnelPath.push(current);
-        apex = current.clone();
-      }
-    }
-    
-    // 最後の点を追加
-    funnelPath.push(path[path.length - 1]);
-    
-    return funnelPath;
-  }
-  
-  // 2点間の視線チェック（障害物がないか）
-  private hasLineOfSight(start: THREE.Vector3, end: THREE.Vector3): boolean {
-    // 距離が非常に近い場合は常にtrueを返す（微小な障害物検出を防ぐ）
-    const distance = start.distanceTo(end);
-    if (distance < 0.5) return true;
-    
-    const direction = new THREE.Vector3().subVectors(end, start).normalize();
-    
-    // レイキャストで衝突チェック（複数のレイを使用して精度を向上）
-    const mainRay = new THREE.Raycaster(start.clone(), direction, 0, distance);
-    const mainIntersections = mainRay.intersectObjects(this.levelSystem.getWalls(), true);
-    
-    if (mainIntersections.length === 0) {
-      return true; // メインレイに障害物なし
-    }
-    
-    // 障害物との交差点が終点に十分近い場合は、視線ありと判定（小さな障害物をすり抜ける）
-    if (mainIntersections.length > 0) {
-      const hitPoint = mainIntersections[0].point;
-      const hitDistance = hitPoint.distanceTo(end);
-      if (hitDistance < 0.5) {
-        return true;
-      }
-    }
-    
-    return false;
   }
   
   // デバッグ用：現在のパス探索の成功/失敗状態を取得

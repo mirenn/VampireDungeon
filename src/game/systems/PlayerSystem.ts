@@ -265,62 +265,237 @@ export class PlayerSystem {
     const targetPoint = new THREE.Vector3();
     
     if (ray.intersectPlane(this.plane, targetPoint)) {
-      // 交点を目標位置として設定
-      this.targetPosition = targetPoint;
+      // 交点を目標位置として設定（最初のクリック位置を記録）
+      const originalTarget = targetPoint.clone();
+      let validTargetFound = false;
       
-      // クリック位置が障害物近すぎないか確認
+      // レベルシステムが存在する場合は障害物チェックを行う
       if (this.levelSystem) {
         const levelWalls = this.levelSystem.getWalls();
-        const minSafeDistance = 0.5; // 障害物からの最小安全距離
+        const minSafeDistance = 1.2; // 障害物からの最小安全距離を増加
         
-        // 目標位置の周りに小さなバウンディングボックスを作成して、障害物との衝突をチェック
+        // クリック地点が障害物内かどうかをチェック
+        let insideObstacle = false;
+        let nearestObstaclePoint: THREE.Vector3 | null = null;
+        let minDistance = Number.MAX_VALUE;
+        
+        // クリック位置が直接障害物内にあるかチェック - 判定の厳密化
         const tempBox = new THREE.Box3().setFromCenterAndSize(
           targetPoint,
-          new THREE.Vector3(minSafeDistance * 2, minSafeDistance * 2, minSafeDistance * 2)
+          new THREE.Vector3(0.05, 0.05, 0.05) // より小さいボックスでチェック
         );
         
-        // 障害物との衝突がある場合は、クリック位置を少し調整
+        // 障害物との衝突チェック（レイキャストも使用して厳密化）
+        let obstacleHit = false;
+        let obstacleDistance = Number.MAX_VALUE;
+        let obstacleNormal = new THREE.Vector3();
+        
+        // カメラからターゲットポイントへのレイをチェック
+        this.raycaster.setFromCamera(mouse, this.camera);
+        const obstacleHits = this.raycaster.intersectObjects(levelWalls, true);
+        if (obstacleHits.length > 0) {
+          obstacleHit = true;
+          obstacleDistance = obstacleHits[0].distance;
+          if (obstacleHits[0].face) {
+            obstacleNormal.copy(obstacleHits[0].face.normal);
+            // ワールド座標系に変換
+            if (obstacleHits[0].object.parent) {
+              obstacleNormal.transformDirection(obstacleHits[0].object.matrixWorld);
+            }
+          }
+        }
+        
+        // 障害物との衝突チェック
         for (const wall of levelWalls) {
           const wallBox = wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
+          
+          // 1. クリック位置が障害物と直接衝突している場合
           if (tempBox.intersectsBox(wallBox)) {
-            // 障害物からの最短方向と距離を計算（単純化のため中心点ベースで）
+            insideObstacle = true;
+            
+            // 障害物の中心を取得
             const wallCenter = new THREE.Vector3();
             wallBox.getCenter(wallCenter);
-            const awayDir = new THREE.Vector3().subVectors(targetPoint, wallCenter).normalize();
             
-            // 障害物からより離れた位置に調整
-            targetPoint.add(awayDir.multiplyScalar(minSafeDistance * 2));
-            this.targetPosition = targetPoint;
-            break;
+            // 障害物の最も近い点を見つける
+            const closestPoint = new THREE.Vector3();
+            wallBox.clampPoint(targetPoint, closestPoint);
+            
+            const distance = targetPoint.distanceTo(closestPoint);
+            if (distance < minDistance) {
+              minDistance = distance;
+              nearestObstaclePoint = closestPoint.clone();
+            }
+          }
+          
+          // 2. クリック位置が障害物の安全距離内にある場合
+          const expandedBox = wallBox.clone().expandByScalar(minSafeDistance);
+          if (expandedBox.containsPoint(targetPoint)) {
+            // 障害物との最短距離を計算
+            const closestPoint = new THREE.Vector3();
+            wallBox.clampPoint(targetPoint, closestPoint);
+            
+            const distance = targetPoint.distanceTo(closestPoint);
+            if (distance < minSafeDistance && distance < minDistance) {
+              insideObstacle = true;
+              minDistance = distance;
+              nearestObstaclePoint = closestPoint.clone();
+            }
+          }
+        }
+        
+        // 障害物内または障害物に近すぎる場合、安全な場所を計算
+        if (insideObstacle && nearestObstaclePoint) {
+          console.log("クリック位置が障害物内または障害物に近すぎます。安全な位置を計算します。");
+          
+          // プレイヤーの現在位置を取得
+          const playerPos = this.player.getPosition();
+          
+          // 障害物からの方向ベクトルを計算するための様々な要素
+          let safeDirection = new THREE.Vector3();
+          
+          // 1. 障害物の中心/表面からプレイヤー方向へのベクトル
+          const dirFromObstacle = new THREE.Vector3().subVectors(playerPos, nearestObstaclePoint).normalize();
+          
+          // 2. レイキャストで取得した障害物の法線（ある場合）
+          if (obstacleHit && obstacleNormal.lengthSq() > 0) {
+            // 法線とプレイヤー方向を組み合わせる
+            safeDirection.addScaledVector(obstacleNormal, 0.7);
+            safeDirection.addScaledVector(dirFromObstacle, 0.3);
+          } 
+          // 3. 障害物からクリック方向への考慮
+          else {
+            // 障害物中心からクリック方向へのベクトル
+            const dirToOriginalClick = new THREE.Vector3().subVectors(originalTarget, nearestObstaclePoint).normalize();
+            
+            // 完全に障害物内にいる場合は、プレイヤー方向を優先
+            if (tempBox.intersectsBox(new THREE.Box3().setFromObject(levelWalls[0]))) {
+              safeDirection.addScaledVector(dirFromObstacle, 0.7);
+              safeDirection.addScaledVector(dirToOriginalClick, 0.3);
+            } else {
+              // 安全距離内の場合はクリック方向を優先
+              safeDirection.addScaledVector(dirToOriginalClick, 0.7);
+              safeDirection.addScaledVector(dirFromObstacle, 0.3);
+            }
+          }
+          
+          // 安全方向の正規化
+          safeDirection.normalize();
+          
+          // 安全な距離だけ障害物から離れた位置を計算
+          const safeOffset = Math.max(minSafeDistance * 1.5, minDistance + minSafeDistance);
+          targetPoint.copy(nearestObstaclePoint).addScaledVector(safeDirection, safeOffset);
+          
+          // 新しい位置が別の障害物と衝突していないか確認
+          let isSafe = true;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const safeBox = new THREE.Box3().setFromCenterAndSize(
+              targetPoint,
+              new THREE.Vector3(1.0, 1.0, 1.0)
+            );
+            
+            isSafe = true;
+            for (const wall of levelWalls) {
+              const wallBox = wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
+              if (safeBox.intersectsBox(wallBox)) {
+                isSafe = false;
+                // 方向を少し変え、距離を増やして再試行
+                safeDirection.add(new THREE.Vector3(Math.random() * 0.2 - 0.1, 0, Math.random() * 0.2 - 0.1)).normalize();
+                targetPoint.copy(nearestObstaclePoint).addScaledVector(safeDirection, safeOffset * (1 + attempt * 0.5));
+                break;
+              }
+            }
+            
+            if (isSafe) break;
+          }
+          
+          if (isSafe) {
+            validTargetFound = true;
+            console.log("安全な目標位置を見つけました");
+          } else {
+            console.log("安全な目標位置が見つかりません。パスファインディングに任せます。");
+            // 最後の手段として、元のクリック位置を使用し、パスファインダーに代替経路を見つけさせる
+            targetPoint.copy(originalTarget);
+          }
+        } else {
+          // 障害物と衝突していない場合は、元のクリック位置を使用
+          validTargetFound = true;
+        }
+      } else {
+        // レベルシステムがない場合は、元のクリック位置を使用
+        validTargetFound = true;
+      }
+    }
+    
+    // 安全な目標位置またはオリジナルのクリック位置を使用
+    this.targetPosition = targetPoint;
+    
+    // パスファインディングで経路を探索
+    const startPos = this.player.getPosition();
+    const path = this.pathFindingSystem.findPath(startPos, targetPoint);
+    
+    // パスが見つかった場合
+    if (path.length > 0) {
+      this.clearPath(); // 既存のパスをクリア
+      this.pathToFollow = path;
+      this.currentPathIndex = 0;
+      
+      // パスの可視化
+      this.createPathMarkers();
+      
+      // 初期方向を設定（移動の開始をスムーズに）
+      if (path.length > 1) {
+        this.player.prepareNextDirection(path[0], path[1]);
+      }
+      
+      // 移動先を視覚的に示すためのエフェクト（成功: 緑色）
+      this.showClickEffect(targetPoint, 0x00ff00);
+    } else {
+      // パスが見つからなかった場合
+      console.log("目標位置への経路が見つかりませんでした");
+      
+      // 最後のリゾートとして、プレイヤーから見て目標方向にレイキャストを行い、
+      // 障害物のない最も遠い地点を見つける
+      const playerPos = this.player.getPosition();
+      const direction = new THREE.Vector3().subVectors(targetPoint, playerPos).normalize();
+      
+      // プレイヤーから目標方向への最大距離
+      const maxDistance = playerPos.distanceTo(targetPoint);
+      const rayStart = playerPos.clone();
+      rayStart.y += 0.5; // 地面からやや上
+      
+      this.raycaster.set(rayStart, direction);
+      const intersections = this.raycaster.intersectObjects(this.levelSystem ? this.levelSystem.getWalls() : [], true);
+      
+      if (intersections.length > 0 && intersections[0].distance < maxDistance) {
+        // 障害物にぶつかる場合、その手前の安全な位置を計算
+        const safeDistance = Math.max(0, intersections[0].distance - 1.5);
+        if (safeDistance > 0.5) { // 最低限の移動距離があるなら
+          const fallbackTarget = new THREE.Vector3()
+            .copy(playerPos)
+            .addScaledVector(direction, safeDistance);
+          
+          // フォールバック経路を試す
+          const fallbackPath = this.pathFindingSystem.findPath(startPos, fallbackTarget);
+          if (fallbackPath.length > 0) {
+            this.clearPath();
+            this.pathToFollow = fallbackPath;
+            this.currentPathIndex = 0;
+            this.createPathMarkers();
+            
+            if (fallbackPath.length > 1) {
+              this.player.prepareNextDirection(fallbackPath[0], fallbackPath[1]);
+            }
+            
+            // 移動先を視覚的に示すためのエフェクト（代替経路: 橙色）
+            this.showClickEffect(fallbackTarget, 0xFFA500);
+            return;
           }
         }
       }
       
-      // パスファインディングで経路を探索
-      const startPos = this.player.getPosition();
-      const path = this.pathFindingSystem.findPath(startPos, targetPoint);
-      
-      // パスが見つかった場合
-      if (path.length > 0) {
-        this.clearPath(); // 既存のパスをクリア
-        this.pathToFollow = path;
-        this.currentPathIndex = 0;
-        
-        // パスの可視化
-        this.createPathMarkers();
-        
-        // 初期方向を設定（移動の開始をスムーズに）
-        if (path.length > 1) {
-          this.player.prepareNextDirection(path[0], path[1]);
-        }
-      } else {
-        // パスが見つからなかった場合はエフェクトを赤色に
-        this.showClickEffect(targetPoint, 0xff0000);
-        return; // 移動を開始しない
-      }
-      
-      // 移動先を視覚的に示すためのエフェクト
-      this.showClickEffect(targetPoint);
+      // いかなる経路も見つからなかった場合はエフェクトを赤色に
+      this.showClickEffect(targetPoint, 0xff0000);
     }
   }
 

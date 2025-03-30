@@ -13,6 +13,7 @@
 5. **React UI** - ゲーム情報の表示インターフェース
 
 ## プロジェクト構造
+
 ```
 src/
   ├─ main.tsx           # アプリケーションのエントリーポイント
@@ -166,7 +167,35 @@ export class Item {
 
 #### PlayerSystem
 
-プレイヤーの入力処理と状態管理を担当します：
+プレイヤーの入力処理と状態管理を担当します。主な特徴は以下の通りです：
+
+- キーボード（WASD/矢印キー）による直接移動
+- 右クリックによる高度な経路探索移動
+- 滑らかな回転と移動の制御
+- 壁との衝突判定と回避
+
+#### 右クリック移動システム
+
+右クリックによる移動は以下の手順で処理されます：
+
+1. **目標位置の決定**
+   - マウス位置からレイキャストで地面との交点を計算
+   - 障害物との安全距離をチェックし、必要に応じて位置を調整
+
+2. **経路探索**
+   - PathFindingSystemを使用して最適経路を計算
+   - 経路が見つかった場合は緑色のエフェクトを表示
+   - 経路が見つからない場合は赤色のエフェクトを表示
+
+3. **移動の実行**
+   - パス上の各ウェイポイントに向かって移動
+   - 曲がり角での速度調整（減速）
+   - 滑らかな方向転換
+
+4. **視覚的フィードバック**
+   - 移動先のクリックエフェクト表示
+   - 経路の可視化（デバッグモード）
+   - エフェクトのアニメーション
 
 ```typescript
 // PlayerSystem.ts の主要インターフェース
@@ -176,6 +205,10 @@ export class PlayerSystem {
   public update(deltaTime: number): void;
   public setLevelSystem(levelSystem: LevelSystem): void;
   public getPlayer(): Player | null;
+  private onRightClick(event: MouseEvent): void;
+  private createPathMarkers(): void;
+  private clearPath(): void;
+  private recalculatePath(): void;
   public dispose(): void;
 }
 ```
