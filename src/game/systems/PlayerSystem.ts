@@ -5,13 +5,13 @@ import { PathFindingSystem } from './PathFindingSystem';
 
 export class PlayerSystem {
   private player: Player | null = null;
+  private levelSystem: LevelSystem | null = null;
   private keyState: { [key: string]: boolean } = {};
   private targetPosition: THREE.Vector3 | null = null;
   private raycaster: THREE.Raycaster;
   private plane: THREE.Plane;
   private cameraOffset: THREE.Vector3;
   private cameraLerpFactor: number = 0.1; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
-  private levelSystem: LevelSystem | null = null;
   private pathFindingSystem: PathFindingSystem | null = null;
   private pathToFollow: THREE.Vector3[] = []; // 経路探索で生成されたパス
   private currentPathIndex: number = 0; // 現在のパスのインデックス
@@ -45,6 +45,13 @@ export class PlayerSystem {
     this.player = new Player();
     this.scene.add(this.player.mesh);
     
+    // レベルシステムが設定されている場合、スポーン位置を適用
+    if (this.levelSystem) {
+      const spawnPosition = this.levelSystem.getPlayerSpawnPosition();
+      this.player.mesh.position.copy(spawnPosition);
+      this.player.update(0); // バウンディングボックスを更新
+    }
+    
     // カメラの初期位置を設定
     this.updateCameraPosition();
   }
@@ -60,7 +67,7 @@ export class PlayerSystem {
   }
 
   public update(deltaTime: number): void {
-    if (!this.player) return;
+    if (!this.player || !this.levelSystem) return;
 
     // 現在位置を保存（衝突判定後に戻すため）
     const oldPosition = this.player.mesh.position.clone();
@@ -316,7 +323,7 @@ export class PlayerSystem {
 
     // Qキーによる攻撃処理を追加
     if (event.key === 'q' || event.key === 'Q') {
-      if (this.player && this.player.attack()) {
+      if (this.player && this.player.useSkill('basicAttack')) {
         console.log('攻撃が発動しました');
         
         // マウス位置からの方向を計算

@@ -205,7 +205,6 @@ export class GameManager {
     this.playerSystem.update(deltaTime);
     this.enemySystem.update(deltaTime);
     this.itemSystem.update(deltaTime);
-    this.levelSystem.update(deltaTime);
     
     // コントロールの更新（使用していない場合は無視）
     if (this.controls) {
