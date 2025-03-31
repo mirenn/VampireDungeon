@@ -343,8 +343,12 @@ export class Player {
         distance -= moveDistance * 1.5; // 帰りは少し速く
         
         if (distance > 0) {
-          // 直線的に戻る
-          attackEffect.position.copy(startPosition).addScaledVector(direction, distance);
+          // プレイヤーの現在位置を取得（移動している場合に追従）
+          const currentPlayerPosition = this.mesh.position.clone();
+          currentPlayerPosition.y += 1.3; // 上半身の高さに調整
+          
+          // 前方方向ベクトルの基点を現在のプレイヤー位置に更新
+          attackEffect.position.copy(currentPlayerPosition).addScaledVector(direction, distance);
         } else {
           // プレイヤーに到達したらエフェクト終了
           if (attackEffect.parent) {
