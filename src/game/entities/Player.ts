@@ -15,7 +15,8 @@ export class Player {
   private targetDirection: THREE.Vector3 | null = null;
   private nextWaypoint: THREE.Vector3 | null = null;
   private attackCooldown: number = 0;
-  private weapons: string[] = ['basic'];
+  private skills: string[] = ['basicAttack'];  // 基本攻撃スキル
+  private skillCooldowns: { [key: string]: number } = {};  // スキルごとのクールダウン
   private items: string[] = [];
 
   constructor() {
@@ -38,23 +39,21 @@ export class Player {
     head.castShadow = true;
     playerGroup.add(head);
 
-    // 武器の作成
-    const weaponGeometry = new THREE.BoxGeometry(0.2, 0.2, 1.5);
-    const weaponMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc });
-    const weapon = new THREE.Mesh(weaponGeometry, weaponMaterial);
-    weapon.position.set(0.6, 1.0, 0.4);
-    weapon.rotation.z = Math.PI / 4;
-    weapon.castShadow = true;
-    weapon.userData.isWeapon = true; // 武器として識別するフラグを追加
-    playerGroup.add(weapon);
+    // スキル表示用のオブジェクト（デフォルトの基本攻撃）
+    const skillGeometry = new THREE.BoxGeometry(0.2, 0.2, 1.5);
+    const skillMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+    const skillObject = new THREE.Mesh(skillGeometry, skillMaterial);
+    skillObject.position.set(0.6, 1.0, 0.4);
+    skillObject.rotation.z = Math.PI / 4;
+    skillObject.castShadow = true;
+    skillObject.userData.isSkillObject = true;
+    playerGroup.add(skillObject);
 
     this.mesh = playerGroup;
     this.mesh.name = 'player';
 
-    // 衝突判定用のバウンディングボックス
-    //this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
-    // 衝突判定用のバウンディングボックス（武器を除外）
-    this.updateBoundingBox();
+    // スキルのクールダウンを初期化
+    this.skillCooldowns['basicAttack'] = 0;
   }
   // バウンディングボックスを更新するメソッド（武器を除外）
   private updateBoundingBox(): void {
@@ -62,7 +61,7 @@ export class Player {
 
     // 武器以外のパーツを収集
     this.mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh && !child.userData.isWeapon) {
+      if (child instanceof THREE.Mesh && !child.userData.isSkillObject) {
         bodyParts.push(child);
       }
     });
@@ -142,12 +141,14 @@ export class Player {
   }
 
   public update(deltaTime: number): void {
-    // バウンディングボックスの更新（武器を除外）
+    // バウンディングボックスの更新
     this.updateBoundingBox();
 
-    // 攻撃クールダウンの更新
-    if (this.attackCooldown > 0) {
-      this.attackCooldown -= deltaTime;
+    // スキルのクールダウンを更新
+    for (const skillId in this.skillCooldowns) {
+      if (this.skillCooldowns[skillId] > 0) {
+        this.skillCooldowns[skillId] -= deltaTime;
+      }
     }
 
     // 目標方向がある場合は、徐々にその方向へ回転
@@ -184,11 +185,16 @@ export class Player {
     }
   }
 
-  // 攻撃
-  public attack(): boolean {
-    if (this.attackCooldown <= 0) {
-      // 攻撃クールダウンをリセット
-      this.attackCooldown = 1 / this.attackSpeed;
+  // 攻撃メソッドをスキル使用メソッドに変更
+  public useSkill(skillId: string): boolean {
+    if (!this.skills.includes(skillId)) {
+      return false;  // スキルを所持していない
+    }
+
+    const cooldown = this.skillCooldowns[skillId] || 0;
+    if (cooldown <= 0) {
+      // スキルのクールダウンをリセット（スキルごとに異なる値を設定可能）
+      this.skillCooldowns[skillId] = this.getSkillCooldown(skillId);
       return true;
     }
     return false;
@@ -217,23 +223,40 @@ export class Player {
     return false; // レベルアップしない
   }
 
-  // 武器を追加
-  public addWeapon(weaponId: string): void {
-    if (!this.weapons.includes(weaponId)) {
-      this.weapons.push(weaponId);
+  // スキルを追加
+  public addSkill(skillId: string): void {
+    if (!this.skills.includes(skillId)) {
+      this.skills.push(skillId);
+      this.skillCooldowns[skillId] = 0;  // クールダウンを初期化
     }
   }
 
-  // アイテムを追加
-  public addItem(itemId: string): void {
-    this.items.push(itemId);
+  // スキルを所持しているか確認
+  public hasSkill(skillId: string): boolean {
+    return this.skills.includes(skillId);
   }
 
-  // プレイヤーの位置を取得
-  public getPosition(): THREE.Vector3 {
-    return this.mesh.position.clone();
+  // スキルのクールダウン状態を取得
+  public getSkillCooldown(skillId: string): number {
+    switch (skillId) {
+      case 'basicAttack':
+        return 1 / this.attackSpeed;
+      // 他のスキルのクールダウン時間をここに追加
+      default:
+        return 1;  // デフォルトのクールダウン時間
+    }
   }
 
+  // すべての所持スキルを取得
+  public getSkills(): string[] {
+    return [...this.skills];
+  }
+  
+    // プレイヤーの位置を取得
+    public getPosition(): THREE.Vector3 {
+      return this.mesh.position.clone();
+    }
+  
   // プレイヤーの方向を取得
   public getDirection(): THREE.Vector3 {
     return this.direction.clone();

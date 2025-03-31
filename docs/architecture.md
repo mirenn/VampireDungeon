@@ -169,7 +169,7 @@ export class Item {
 
 プレイヤーの入力処理と状態管理を担当します。主な特徴は以下の通りです：
 
-- キーボード（WASD/矢印キー）による直接移動
+- キーボード（WASD/矢印キー）による直接移動(廃止予定)
 - 右クリックによる高度な経路探索移動
 - 滑らかな回転と移動の制御
 - 壁との衝突判定と回避
@@ -425,3 +425,75 @@ npm run preview
 ```
 
 ビルドされたファイルは`dist`ディレクトリに出力されます。
+
+### スキルシステム
+
+プレイヤーのスキルシステムは以下のように設計されています：
+
+```typescript
+// スキル管理の主要インターフェース
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  cooldown: number;
+  castTime?: number;
+  damage?: number;
+  range?: number;
+  effects?: SkillEffect[];
+}
+
+// スキル効果の種類
+type SkillEffect = {
+  type: 'damage' | 'stun' | 'slow' | 'heal' | 'buff';
+  value: number;
+  duration?: number;
+};
+```
+
+#### スキルの種類
+
+1. **基本攻撃** (デフォルトスキル)
+   - 単純な近接攻撃
+   - クールダウンは攻撃速度に依存
+
+2. **取得可能なスキル**
+   - QWERキーに割り当て可能
+   - 固有のクールダウン時間
+   - 様々な効果（ダメージ、スタン、スロー等）
+   - 最大4つまで同時装備可能
+   - 同じスキルを選ぶとスキルパワーアップ可能
+
+#### スキル管理システム
+
+PlayerSystemでは以下のようにスキルを管理します：
+
+```typescript
+// PlayerSystemでのスキル管理
+class PlayerSystem {
+  // ...existing code...
+
+  private handleSkillInput(): void {
+    // QWERキーの入力処理
+    const skillKeys = {
+      'q': 0,
+      'w': 1,
+      'e': 2,
+      'r': 3
+    };
+
+    for (const [key, index] of Object.entries(skillKeys)) {
+      if (this.keyState[key] && this.player) {
+        const skills = this.player.getSkills();
+        if (skills[index]) {
+          this.player.useSkill(skills[index]);
+        }
+      }
+    }
+  }
+}
+```
+
+#### スキルの視覚効果
+
+各スキルは独自の視覚効果を持ち、Three.jsのパーティクルシステムなどを使用して表現されます。
