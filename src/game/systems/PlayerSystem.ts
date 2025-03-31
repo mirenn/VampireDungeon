@@ -18,6 +18,7 @@ export class PlayerSystem {
   private pathMarkers: THREE.Object3D[] = []; // パスを可視化するマーカー
   private showPath: boolean = true; // パスを可視化するかどうかのフラグ
   private consecutiveCollisions: number | undefined = undefined; // 連続衝突回数
+  private mousePosition: THREE.Vector2 = new THREE.Vector2(); // マウス位置を保存
 
   constructor(private scene: THREE.Scene, private camera: THREE.Camera) {
     // キー入力のイベントリスナーを設定
@@ -34,6 +35,9 @@ export class PlayerSystem {
     // カメラのオフセット位置（プレイヤーからの相対位置）
     this.cameraOffset = new THREE.Vector3(0, 25, 25);
     this.cameraLerpFactor = 0.1; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
+
+    // マウス移動のイベントリスナーを追加
+    window.addEventListener('mousemove', this.onMouseMove.bind(this));
   }
 
   public init(): void {
@@ -275,6 +279,7 @@ export class PlayerSystem {
     window.removeEventListener('keydown', this.onKeyDown.bind(this));
     window.removeEventListener('keyup', this.onKeyUp.bind(this));
     window.removeEventListener('contextmenu', this.onRightClick.bind(this));
+    window.removeEventListener('mousemove', this.onMouseMove.bind(this));
     
     // プレイヤーの削除
     if (this.player) {
@@ -285,6 +290,13 @@ export class PlayerSystem {
     
     // パスマーカーの削除
     this.clearPathMarkers();
+  }
+
+  // マウスが移動した時の処理
+  private onMouseMove(event: MouseEvent): void {
+    // マウス位置の正規化（-1〜1の範囲）
+    this.mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
   }
 
   // キーが押された時の処理
@@ -301,6 +313,47 @@ export class PlayerSystem {
         marker.visible = this.showPath;
       }
     }
+
+    // Qキーによる攻撃処理を追加
+    if (event.key === 'q' || event.key === 'Q') {
+      if (this.player && this.player.attack()) {
+        console.log('攻撃が発動しました');
+        
+        // マウス位置からの方向を計算
+        const attackDirection = this.getDirectionToMousePosition();
+        if (attackDirection) {
+          // 方向を指定して攻撃エフェクトを表示
+          this.player.showAttackEffect(attackDirection);
+        } else {
+          // マウス方向が取得できなかった場合は通常の攻撃方向を使用
+          this.player.showAttackEffect();
+        }
+      }
+    }
+  }
+
+  // マウス位置への方向ベクトルを計算
+  private getDirectionToMousePosition(): THREE.Vector3 | null {
+    if (!this.player) return null;
+    
+    // レイキャスターを設定（カメラとマウス位置から光線を飛ばす）
+    this.raycaster.setFromCamera(this.mousePosition, this.camera);
+    
+    // 地面との交点を計算
+    const ray = this.raycaster.ray;
+    const targetPoint = new THREE.Vector3();
+    
+    if (ray.intersectPlane(this.plane, targetPoint)) {
+      // プレイヤーの位置を取得
+      const playerPosition = this.player.getPosition();
+      
+      // プレイヤーからマウス位置への方向ベクトル
+      const direction = new THREE.Vector3().subVectors(targetPoint, playerPosition).normalize();
+      
+      return direction;
+    }
+    
+    return null;
   }
 
   // キーが離された時の処理
@@ -314,13 +367,8 @@ export class PlayerSystem {
     
     if (!this.player || !this.pathFindingSystem) return;
     
-    // マウス位置の正規化（-1〜1の範囲）
-    const mouse = new THREE.Vector2();
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    
     // レイキャスターを設定（カメラとマウス位置から光線を飛ばす）
-    this.raycaster.setFromCamera(mouse, this.camera);
+    this.raycaster.setFromCamera(this.mousePosition, this.camera);
     
     // 地面との交点を計算
     const ray = this.raycaster.ray;
@@ -353,7 +401,7 @@ export class PlayerSystem {
         let obstacleNormal = new THREE.Vector3();
         
         // カメラからターゲットポイントへのレイをチェック
-        this.raycaster.setFromCamera(mouse, this.camera);
+        this.raycaster.setFromCamera(this.mousePosition, this.camera);
         const obstacleHits = this.raycaster.intersectObjects(levelWalls, true);
         if (obstacleHits.length > 0) {
           obstacleHit = true;

@@ -284,4 +284,97 @@ export class Player {
     this.mesh.position.x += direction.x * distance;
     this.mesh.position.z += direction.z * distance;
   }
+
+  // 攻撃エフェクトを表示するメソッド
+  public showAttackEffect(customDirection?: THREE.Vector3): void {
+    // 攻撃エフェクト（球）を作成
+    const attackEffect = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 16, 16),
+      new THREE.MeshStandardMaterial({ 
+        color: 0xff0000, 
+        transparent: true, 
+        opacity: 0.8,
+        emissive: 0xff5500,
+        emissiveIntensity: 0.5
+      })
+    );
+    
+    // プレイヤーの位置を基準にする
+    const startPosition = this.mesh.position.clone();
+    startPosition.y += 1.3; // プレイヤーの上半身から発射
+    
+    // 攻撃方向の設定（カスタム方向があればそれを使用、なければプレイヤーの向き）
+    const direction = customDirection ? customDirection.clone().normalize() : this.direction.clone().normalize();
+    
+    // エフェクトの初期位置をプレイヤーの少し前に設定
+    const offsetDistance = 1.0;
+    attackEffect.position.copy(startPosition).addScaledVector(direction, offsetDistance);
+    
+    // シーンに追加
+    this.mesh.parent?.add(attackEffect);
+    
+    // アニメーション用変数
+    const maxDistance = 10.0; // 最大飛距離
+    const speed = 15.0; // 球の速度
+    let distance = offsetDistance; // 初期距離
+    let isReturning = false; // 帰りかどうかのフラグ
+    let lastTimestamp = performance.now();
+    
+    // アニメーション関数
+    const animate = (timestamp: number) => {
+      // 経過時間（秒）を計算
+      const deltaTime = Math.min((timestamp - lastTimestamp) / 1000, 0.1); // 最大100msに制限
+      lastTimestamp = timestamp;
+      
+      // 移動距離を計算
+      const moveDistance = speed * deltaTime;
+      
+      if (!isReturning) {
+        // 前方へ飛ぶ
+        distance += moveDistance;
+        attackEffect.position.copy(startPosition).addScaledVector(direction, distance);
+        
+        // 最大距離に達したら戻り始める
+        if (distance >= maxDistance) {
+          isReturning = true;
+        }
+      } else {
+        // プレイヤーへ戻る
+        distance -= moveDistance * 1.5; // 帰りは少し速く
+        
+        if (distance > 0) {
+          // 直線的に戻る
+          attackEffect.position.copy(startPosition).addScaledVector(direction, distance);
+        } else {
+          // プレイヤーに到達したらエフェクト終了
+          if (attackEffect.parent) {
+            attackEffect.material.dispose();
+            attackEffect.geometry.dispose();
+            attackEffect.parent.remove(attackEffect);
+          }
+          return; // アニメーション終了
+        }
+      }
+      
+      // 球を回転させる（見た目の効果）
+      attackEffect.rotation.x += deltaTime * 10;
+      attackEffect.rotation.y += deltaTime * 8;
+      
+      // 途中で不透明度を変更
+      const material = attackEffect.material as THREE.MeshStandardMaterial;
+      if (isReturning) {
+        // 戻るときは徐々に明るく
+        material.opacity = Math.min(0.8, 0.4 + (0.4 * (maxDistance - distance) / maxDistance));
+        material.emissiveIntensity = 0.5 + (0.5 * (maxDistance - distance) / maxDistance);
+      } else {
+        // 行くときは特に効果なし（または必要に応じて効果を追加）
+      }
+      
+      // 次のフレームへ
+      requestAnimationFrame(animate);
+    };
+    
+    // アニメーション開始
+    requestAnimationFrame(animate);
+  }
 }
