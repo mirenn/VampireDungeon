@@ -19,7 +19,7 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
       { x: 10, y: 20, width: 20, height: 2 },  // 中央の横壁
     ],
     stairs: { x: 45, y: 45, toLevel: 2 },
-    playerSpawn: { x: 30, y: 10 }  // 壁から十分離れた内側の位置に調整
+    playerSpawn: { x: 10, y: 10 }  // 壁から十分離れた内側の位置に調整
   },
   2: {
     walls: [
@@ -147,8 +147,12 @@ export class LevelSystem {
   public getPlayerSpawnPosition(): THREE.Vector3 {
     const pattern = FLOOR_PATTERNS[this.currentLevel];
     if (pattern.playerSpawn) {
-      return new THREE.Vector3(pattern.playerSpawn.x, 0, pattern.playerSpawn.y);
+      const spawnPosition = new THREE.Vector3(pattern.playerSpawn.x, 0, pattern.playerSpawn.y);
+      console.log(`Level ${this.currentLevel} Player Spawn Position:`, spawnPosition); // デバッグログを追加
+      return spawnPosition;
     }
+    const defaultSpawnPosition = new THREE.Vector3(5, 0, 5);
+    console.log(`Level ${this.currentLevel} Player Spawn Position:`, defaultSpawnPosition, "(Using default)"); // デバッグログを追加
     return new THREE.Vector3(5, 0, 5); // デフォルトのスポーン位置
   }
 

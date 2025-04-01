@@ -1,4 +1,3 @@
-// filepath: c:\Users\ngihy\Documents\nagai\VampireDungeon\src\game\systems\PathFindingSystem.ts
 import * as THREE from 'three';
 import { LevelSystem } from './LevelSystem';
 
