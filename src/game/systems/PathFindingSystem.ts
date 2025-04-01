@@ -176,6 +176,133 @@ export class PathFindingSystem {
   public setUpdateRequired(): void {
     this.updateRequired = true;
   }
+  // PathFindingSystem クラスに追加するデバッグ用可視化メソッド
+public createDebugVisualization(showPath: boolean = false, path: THREE.Vector3[] = []): THREE.Group {
+  const debugGroup = new THREE.Group();
+  
+  // グリッドの全ノードを視覚化
+  const gridDimensions = this.grid.getDimensions();
+  for (let x = 0; x < gridDimensions.width; x++) {
+    for (let y = 0; y < gridDimensions.height; y++) {
+      const node = this.grid.getNode(x, y);
+      if (node) {
+        const worldPos = this.grid.gridToWorld(x, y);
+        
+        // ノードを表す平面を作成
+        const geometry = new THREE.PlaneGeometry(0.9, 0.9);
+        
+        // クリアランススコアに基づいて色を決定
+        let nodeColor;
+        if (!node.isWalkable) {
+          // 障害物は赤
+          nodeColor = 0xff0000;
+        } else {
+          // 壁からの距離（クリアランス）によって色の濃さを変える
+          const clearanceScore = this.getNodeClearanceScore(node);
+          if (clearanceScore <= 1) {
+            // 壁に隣接しているノードは黄色
+            nodeColor = 0xffff00;
+          } else if (clearanceScore <= 2) {
+            // 壁から少し離れたノードは薄い緑
+            nodeColor = 0x99ff99;
+          } else {
+            // 十分に空いているノードは通常の緑
+            nodeColor = 0x00ff00;
+          }
+        }
+        
+        const material = new THREE.MeshBasicMaterial({ 
+          color: nodeColor,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.DoubleSide
+        });
+        
+        const plane = new THREE.Mesh(geometry, material);
+        plane.position.set(worldPos.x, 0.1, worldPos.z); // 地面より少し上に配置
+        plane.rotation.x = -Math.PI / 2; // 水平に配置
+        
+        debugGroup.add(plane);
+        
+        // グリッド座標を表示する（オプション）
+        if (x % 5 === 0 && y % 5 === 0) {
+          // TextGeometryの代わりにスプライトまたは単純なマーカーを使用
+          const textSprite = this.createTextSprite(`${x},${y}`);
+          textSprite.position.set(worldPos.x, 0.2, worldPos.z);
+          debugGroup.add(textSprite);
+        }
+      }
+    }
+  }
+  
+  // パスを表示（オプション）
+  if (showPath && path.length > 0) {
+    // パスラインの作成
+    const pathPoints = [];
+    for (const point of path) {
+      pathPoints.push(new THREE.Vector3(point.x, 0.15, point.z)); // 地面より少し上に表示
+    }
+    
+    const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
+    const pathMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 3 });
+    const pathLine = new THREE.Line(pathGeometry, pathMaterial);
+    debugGroup.add(pathLine);
+    
+    // パスの各ポイントに球体を追加して視覚化
+    const sphereGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+    const startMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff }); // 開始点は青
+    const endMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff });   // 終了点はマゼンタ
+    const pointMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // 中間点は水色
+    
+    // 開始点
+    if (path.length > 0) {
+      const startSphere = new THREE.Mesh(sphereGeometry, startMaterial);
+      startSphere.position.set(path[0].x, 0.2, path[0].z);
+      debugGroup.add(startSphere);
+    }
+    
+    // 中間点
+    for (let i = 1; i < path.length - 1; i++) {
+      const pointSphere = new THREE.Mesh(sphereGeometry, pointMaterial);
+      pointSphere.position.set(path[i].x, 0.2, path[i].z);
+      pointSphere.scale.setScalar(0.5); // 中間点は少し小さく
+      debugGroup.add(pointSphere);
+    }
+    
+    // 終了点
+    if (path.length > 1) {
+      const endSphere = new THREE.Mesh(sphereGeometry, endMaterial);
+      endSphere.position.set(path[path.length - 1].x, 0.2, path[path.length - 1].z);
+      debugGroup.add(endSphere);
+    }
+  }
+  
+  return debugGroup;
+}
+
+// TextGeometryの代わりにスプライトでグリッド座標を表示する
+private createTextSprite(text: string, color: number = 0x000000): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) return new THREE.Sprite();
+  
+  canvas.width = 64;
+  canvas.height = 64;
+  
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.font = 'Bold 12px Arial';
+  context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+  context.textAlign = 'center';
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.5, 0.5, 1);
+  
+  return sprite;
+}
   
   // フォールバックパスの生成（経路探索失敗時）
   private getFallbackPath(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
@@ -268,8 +395,8 @@ private aStarSearch(startNode: GridNode, targetNode: GridNode, safetyMargin: num
       let movementCost = isDiagonal ? 1.414 : 1;
       
       // クリアランススコアに基づくペナルティを小さくする
-      // 壁に非常に近い場合のみ少しペナルティを追加
-      const clearancePenalty = (clearanceScore <= 1) ? 0.2 : 0;
+      // 壁に非常に近い場合のみわずかなペナルティを追加
+      const clearancePenalty = (clearanceScore <= 1) ? 0.1 : 0;
       movementCost += clearancePenalty;
       
       const newGCost = currentNode.gCost + movementCost;
@@ -277,8 +404,8 @@ private aStarSearch(startNode: GridNode, targetNode: GridNode, safetyMargin: num
       // このパスが既知のパスより良いか、またはノードがオープンセットにない場合
       if (newGCost < neighbor.gCost || !openSet.includes(neighbor)) {
         neighbor.gCost = newGCost;
-        // ヒューリスティック関数の重みを少し調整して最短経路を優先
-        neighbor.hCost = this.getDistance(neighbor, targetNode) * 1.1; // ヒューリスティックの重みを調整
+        // ヒューリスティック関数の重みを調整して直線的な経路を優先
+        neighbor.hCost = this.getDistance(neighbor, targetNode); // 重み付けを取り除く
         neighbor.parent = currentNode;
         
         if (!openSet.includes(neighbor)) {
@@ -342,26 +469,24 @@ private smoothPath(path: THREE.Vector3[]): THREE.Vector3[] {
   if (path.length <= 2) return path;
   
   const smoothedPath: THREE.Vector3[] = [path[0]];
-  let current = 0;
+  let i = 0;
   
-  while (current < path.length - 1) {
-    // 現在位置から最も遠い安全な可視点を探す
-    let lastSafeIndex = current + 1;
+  while (i < path.length - 1) {
+    const current = path[i];
     
-    // 通常の可視チェックよりも厳格なチェックを適用
-    for (let i = current + 1; i < path.length; i++) {
-      if (this.isSafePath(path[current], path[i])) {
-        lastSafeIndex = i;
-      } else {
-        break; // 安全でない点が見つかったら探索終了
+    // 現在地点から最も遠くて直線で到達可能な点を探す
+    let farthestSafeIndex = i + 1;
+    
+    for (let j = path.length - 1; j > i + 1; j--) {
+      if (this.isSafePath(current, path[j])) {
+        farthestSafeIndex = j;
+        break;
       }
     }
     
-    // 次の点として最も遠い安全な可視点を追加
-    current = lastSafeIndex;
-    if (current < path.length) {
-      smoothedPath.push(path[current]);
-    }
+    // 最も遠い安全な点をパスに追加
+    i = farthestSafeIndex;
+    smoothedPath.push(path[i]);
   }
   
   return smoothedPath;
@@ -371,10 +496,10 @@ private smoothPath(path: THREE.Vector3[]): THREE.Vector3[] {
 private isSafePath(start: THREE.Vector3, end: THREE.Vector3): boolean {
   // 距離が非常に近い場合は常にtrueを返す
   const distance = start.distanceTo(end);
-  if (distance < 0.5) return true;
+  if (distance < 1.0) return true;
   
   // 2点間の線分上で複数のポイントをチェック
-  const checkPoints = 5; // チェックポイント数
+  const checkPoints = Math.max(3, Math.ceil(distance / 0.5)); // 距離に応じてチェックポイント数を調整
   const direction = new THREE.Vector3().subVectors(end, start).normalize();
   
   for (let i = 1; i < checkPoints; i++) {
@@ -386,19 +511,9 @@ private isSafePath(start: THREE.Vector3, end: THREE.Vector3): boolean {
     const gridPos = this.grid.worldToGrid(checkPoint.x, checkPoint.z);
     const node = this.grid.getNode(gridPos.x, gridPos.y);
     
-    // ノードが歩行不能か、安全マージンが不足している場合
-    if (!node || !node.isWalkable || this.getNodeClearanceScore(node) < 1.5) {
+    // ノードが歩行不能の場合のみ経路を安全でないと判断
+    if (!node || !node.isWalkable) {
       return false;
-    }
-    
-    // 壁との衝突チェック（レイキャスト）
-    const rayStart = new THREE.Vector3(checkPoint.x, 1, checkPoint.z); // 高さを少し上げる
-    const rayDirection = new THREE.Vector3(0, -1, 0); // 下向きのレイ
-    const ray = new THREE.Raycaster(rayStart, rayDirection, 0, 2);
-    const intersections = ray.intersectObjects(this.levelSystem.getWalls(), true);
-    
-    if (intersections.length > 0) {
-      return false; // 障害物と交差
     }
   }
   
@@ -423,9 +538,8 @@ private applyFunnelAlgorithm(path: THREE.Vector3[]): THREE.Vector3[] {
     if (i > 1) {
       const angle = dirToCurrent.angleTo(lastDirection);
       
-      // 角度変化が一定以上の場合、または壁に近い場合、中間点を追加
-      if (angle > Math.PI / 8 || // 22.5度以上の曲がり角
-          i % 3 === 0) { // 定期的に中間点を追加（より細かい経路用）
+      // 角度変化が大きい場合のみ中間点を追加
+      if (angle > Math.PI / 6) { // 30度以上の曲がり角のみ中間点を追加
         funnelPath.push(path[i-1]);
         apex = path[i-1].clone();
       }
@@ -437,8 +551,7 @@ private applyFunnelAlgorithm(path: THREE.Vector3[]): THREE.Vector3[] {
   // 最後の点を追加
   funnelPath.push(path[path.length - 1]);
   
-  // 追加の平滑化：急な角度変化を滑らかにする
-  return this.addCornerRounding(funnelPath);
+  return funnelPath;
 }
 
 // コーナーの丸め処理を追加（経路をより滑らかにする）
@@ -457,8 +570,8 @@ private addCornerRounding(path: THREE.Vector3[]): THREE.Vector3[] {
     const v2 = new THREE.Vector3().subVectors(next, current).normalize();
     const angle = v1.angleTo(v2);
     
-    // 角度が大きい場合（鋭角なコーナー）、補間点を追加
-    if (angle > Math.PI / 4) { // 45度以上の角度
+    // 角度が大きい場合のみ補間点を追加（鋭角なコーナー）
+    if (angle > Math.PI / 3) { // 60度以上の角度の場合のみ補間
       // コーナーの前に補間点を追加
       const beforeCorner = new THREE.Vector3().copy(current).sub(v1.multiplyScalar(0.3));
       roundedPath.push(beforeCorner);
@@ -568,8 +681,15 @@ private optimizePath(path: THREE.Vector3[], startWorldPos: THREE.Vector3, endWor
     path[path.length - 1] = endWorldPos.clone();
   }
   
-  // スムージングとファネリングの実行
+  // 直線経路が安全な場合は直接接続して終了
+  if (this.isSafePath(startWorldPos, endWorldPos)) {
+    return [startWorldPos.clone(), endWorldPos.clone()];
+  }
+  
+  // スムージング処理を改善
   const smoothedPath = this.smoothPath(path);
+  
+  // ファネリングは必要な場合のみ適用
   const funnelledPath = this.applyFunnelAlgorithm(smoothedPath);
   
   // 最終的な経路に適度な中間点を追加して滑らかさを向上
@@ -580,7 +700,7 @@ private optimizePath(path: THREE.Vector3[], startWorldPos: THREE.Vector3, endWor
 private ensurePathDensity(path: THREE.Vector3[]): THREE.Vector3[] {
   if (path.length <= 1) return path;
   
-  const maxSegmentLength = 2.0; // 最大セグメント長
+  const maxSegmentLength = 3.0; // 最大セグメント長を増やして中間点を減らす
   const densePath: THREE.Vector3[] = [path[0]];
   
   for (let i = 0; i < path.length - 1; i++) {
@@ -588,7 +708,7 @@ private ensurePathDensity(path: THREE.Vector3[]): THREE.Vector3[] {
     const end = path[i + 1];
     const distance = start.distanceTo(end);
     
-    // セグメントが長すぎる場合、中間点を追加
+    // セグメントが長すぎる場合のみ中間点を追加
     if (distance > maxSegmentLength) {
       const segments = Math.ceil(distance / maxSegmentLength);
       for (let j = 1; j < segments; j++) {

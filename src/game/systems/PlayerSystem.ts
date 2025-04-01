@@ -616,6 +616,11 @@ export class PlayerSystem {
     }
   }
 
+  // 現在のパスを取得（デバッグ用）
+  public getCurrentPath(): THREE.Vector3[] {
+    return this.pathToFollow;
+  }
+
   // パスの可視化マーカーを作成
   private createPathMarkers(): void {
     this.clearPathMarkers(); // 既存のマーカーをクリア

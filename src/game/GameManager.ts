@@ -21,6 +21,11 @@ export class GameManager {
   
   private isRunning: boolean = false;
   
+  // デバッグ用の変数
+  private showPathfindingDebug: boolean = false;
+  private pathfindingDebugObject: THREE.Group | null = null;
+  private debugLastPath: THREE.Vector3[] = [];
+  
   // キーボード入力の状態を管理
   private keysPressed: { [key: string]: boolean } = {};
 
@@ -187,6 +192,11 @@ export class GameManager {
     if (event.key === 'v' || event.key === 'V') {
       this.enemySystem.toggleDetectionRanges();
     }
+    
+    // Dキーでパスファインディングのデバッグビジュアライゼーションをトグル
+    if (event.key === 'd' || event.key === 'D') {
+      this.togglePathfindingDebug();
+    }
   }
   
   // キーアップイベントハンドラ
@@ -215,4 +225,43 @@ export class GameManager {
     // レンダリング
     this.renderer.render(this.scene, this.camera);
   };
+  
+  // パスファインディングデバッグビジュアライゼーションの表示切り替え
+  private togglePathfindingDebug(): void {
+    this.showPathfindingDebug = !this.showPathfindingDebug;
+    console.log(`パスファインディングデバッグ表示: ${this.showPathfindingDebug ? 'オン' : 'オフ'}`);
+    
+    if (this.showPathfindingDebug) {
+      this.updatePathfindingDebugVisualization();
+    } else {
+      // デバッグオブジェクトを削除
+      if (this.pathfindingDebugObject) {
+        this.scene.remove(this.pathfindingDebugObject);
+        this.pathfindingDebugObject = null;
+      }
+    }
+  }
+  
+  // パスファインディングデバッグビジュアライゼーションの更新
+  private updatePathfindingDebugVisualization(): void {
+    // 前回のデバッグオブジェクトを削除
+    if (this.pathfindingDebugObject) {
+      this.scene.remove(this.pathfindingDebugObject);
+    }
+    
+    // プレイヤーのパスを取得
+    const playerPath = this.playerSystem.getCurrentPath();
+    
+    // パスファインディングシステムからデバッグオブジェクトを生成
+    this.pathfindingDebugObject = this.pathFindingSystem.createDebugVisualization(
+      true, // パスを表示
+      playerPath
+    );
+    
+    // シーンに追加
+    this.scene.add(this.pathfindingDebugObject);
+    
+    // 最後のパスを記録
+    this.debugLastPath = [...playerPath];
+  }
 }
