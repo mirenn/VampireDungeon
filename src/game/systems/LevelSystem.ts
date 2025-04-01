@@ -1,191 +1,169 @@
 import * as THREE from 'three';
 
-export class LevelSystem {
-  private currentLevel: number = 0;
-  private levelObjects: THREE.Object3D[] = [];
-  private walls: THREE.Object3D[] = [];
-  private exits: THREE.Object3D[] = [];
+interface MapPattern {
+  walls: { x: number; y: number; width: number; height: number }[];
+  stairs: { x: number; y: number; toLevel: number };
+  playerSpawn?: { x: number; y: number };
+}
 
-  constructor(private scene: THREE.Scene) {}
+const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
+  1: {
+    walls: [
+      // 外周の壁
+      { x: 0, y: 0, width: 50, height: 2 },    // 上壁
+      { x: 0, y: 48, width: 50, height: 2 },   // 下壁
+      { x: 0, y: 0, width: 2, height: 50 },    // 左壁
+      { x: 48, y: 0, width: 2, height: 50 },   // 右壁
+      // 内側の壁と柱
+      { x: 20, y: 10, width: 2, height: 20 },  // 中央の縦壁
+      { x: 10, y: 20, width: 20, height: 2 },  // 中央の横壁
+    ],
+    stairs: { x: 45, y: 45, toLevel: 2 },
+    playerSpawn: { x: 10, y: 10 }  // 壁から十分離れた内側の位置に調整
+  },
+  2: {
+    walls: [
+      // 外周の壁
+      { x: 0, y: 0, width: 60, height: 2 },
+      { x: 0, y: 58, width: 60, height: 2 },
+      { x: 0, y: 0, width: 2, height: 60 },
+      { x: 58, y: 0, width: 2, height: 60 },
+      // 迷路のような内部構造
+      { x: 15, y: 15, width: 30, height: 2 },
+      { x: 15, y: 15, width: 2, height: 30 },
+      { x: 43, y: 15, width: 2, height: 30 },
+      { x: 15, y: 43, width: 30, height: 2 },
+    ],
+    stairs: { x: 55, y: 55, toLevel: 3 },
+    playerSpawn: { x: 20, y: 20 }  // 壁から十分離れた内側の位置に調整
+  },
+  3: {
+    walls: [
+      // 外周の壁（広いボス部屋）
+      { x: 0, y: 0, width: 80, height: 2 },
+      { x: 0, y: 78, width: 80, height: 2 },
+      { x: 0, y: 0, width: 2, height: 80 },
+      { x: 78, y: 0, width: 2, height: 80 },
+      // 四隅の柱
+      { x: 10, y: 10, width: 4, height: 4 },
+      { x: 66, y: 10, width: 4, height: 4 },
+      { x: 10, y: 66, width: 4, height: 4 },
+      { x: 66, y: 66, width: 4, height: 4 },
+    ],
+    stairs: { x: 40, y: 40, toLevel: -1 }, // -1は最終階層を示す
+    playerSpawn: { x: 25, y: 25 }  // 壁と柱から十分離れた内側の位置に調整
+  }
+};
+
+export class LevelSystem {
+  private scene: THREE.Scene;
+  private currentLevel: number = 1;
+  private walls: THREE.Mesh[] = [];
+  private stairs?: THREE.Mesh;
+  private wallMaterial: THREE.Material;
+  private stairsMaterial: THREE.Material;
+
+  constructor(scene: THREE.Scene) {
+    this.scene = scene;
+    this.wallMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+    this.stairsMaterial = new THREE.MeshStandardMaterial({ color: 0xffd700 });
+  }
 
   public init(): void {
-    // 初期化処理
+    this.loadLevel(1);
   }
 
-  public update(deltaTime: number): void {
-    // レベル関連の更新処理
-  }
-
-  // 新しいレベルを読み込む
   public loadLevel(level: number): void {
-    // 前のレベルをクリア
+    // 現在のレベルをクリア
     this.clearLevel();
-    
+
+    if (!FLOOR_PATTERNS[level]) {
+      console.error(`Level ${level} does not exist`);
+      return;
+    }
+
     this.currentLevel = level;
-    console.log(`Loading level ${level}`);
-    
-    // レベルの作成
-    this.generateLevel(level);
+    const pattern = FLOOR_PATTERNS[level];
+
+    // 壁の生成
+    pattern.walls.forEach(wall => {
+      const geometry = new THREE.BoxGeometry(wall.width, 5, wall.height);
+      const mesh = new THREE.Mesh(geometry, this.wallMaterial);
+      mesh.position.set(wall.x + wall.width / 2, 2.5, wall.y + wall.height / 2);
+      this.walls.push(mesh);
+      this.scene.add(mesh);
+    });
+
+    // 階段の生成
+    const stairsGeometry = new THREE.BoxGeometry(4, 0.5, 4);
+    this.stairs = new THREE.Mesh(stairsGeometry, this.stairsMaterial);
+    this.stairs.position.set(pattern.stairs.x, 0.25, pattern.stairs.y);
+    this.scene.add(this.stairs);
   }
 
-  // 現在のレベルをクリア
   private clearLevel(): void {
-    // レベルオブジェクトを削除
-    for (const obj of this.levelObjects) {
-      this.scene.remove(obj);
-      this.disposeObject(obj);
-    }
-    this.levelObjects = [];
+    // 壁の削除
+    this.walls.forEach(wall => {
+      this.scene.remove(wall);
+      wall.geometry.dispose();
+    });
     this.walls = [];
-    this.exits = [];
-  }
 
-  // レベルを生成
-  private generateLevel(level: number): void {
-    // 階層ごとの固定値を設定
-    let wallColor: THREE.Color;
-    let size: number;
-    let obstacles: number;
-    
-    // 階層ごとに異なる値を設定
-    switch (level) {
-      case 1:
-        // 第1階層
-        wallColor = new THREE.Color(0.2, 0.2, 0.3);
-        size = 25;
-        obstacles = 7;
-        break;
-      case 2:
-        // 第2階層
-        wallColor = new THREE.Color(0.3, 0.2, 0.4);
-        size = 30;
-        obstacles = 12;
-        break;
-      case 3:
-        // 第3階層
-        wallColor = new THREE.Color(0.4, 0.2, 0.5);
-        size = 35;
-        obstacles = 18;
-        break;
-      default:
-        // それ以降（ボスステージなど）
-        wallColor = new THREE.Color(0.5, 0.2, 0.6);
-        size = 40;
-        obstacles = 20;
-        break;
-    }
-    
-    const wallHeight = 4;
-    
-    // 壁のマテリアル
-    const wallMaterial = new THREE.MeshStandardMaterial({
-      color: wallColor,
-      roughness: 0.7,
-      metalness: 0.2
-    });
-    
-    // 外周の壁を作成
-    const createWall = (x: number, z: number, width: number, depth: number) => {
-      const wallGeometry = new THREE.BoxGeometry(width, wallHeight, depth);
-      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-      wall.position.set(x, wallHeight / 2, z);
-      wall.castShadow = true;
-      wall.receiveShadow = true;
-      
-      this.scene.add(wall);
-      this.levelObjects.push(wall);
-      this.walls.push(wall);
-      
-      // 衝突判定用のバウンディングボックス
-      wall.userData.boundingBox = new THREE.Box3().setFromObject(wall);
-    };
-    
-    // 外周の壁
-    createWall(0, -size / 2, size, 1);  // 北
-    createWall(0, size / 2, size, 1);   // 南
-    createWall(-size / 2, 0, 1, size);  // 西
-    createWall(size / 2, 0, 1, size);   // 東
-    
-    // 出口を作成（次のレベルへ）
-    const exitGeometry = new THREE.BoxGeometry(3, 0.1, 3);
-    const exitMaterial = new THREE.MeshStandardMaterial({
-      color: 0x00ff00,
-      emissive: 0x003300,
-      roughness: 0.3,
-      metalness: 0.7
-    });
-    
-    const exit = new THREE.Mesh(exitGeometry, exitMaterial);
-    exit.position.set(size / 2 - 5, 0.05, size / 2 - 5);
-    this.scene.add(exit);
-    this.levelObjects.push(exit);
-    this.exits.push(exit);
-    
-    // レベル内の障害物（階層ごとに固定数）
-    for (let i = 0; i < obstacles; i++) {
-      // ランダムなサイズと位置
-      const obstacleWidth = 1 + Math.random() * 3;
-      const obstacleDepth = 1 + Math.random() * 3;
-      
-      // プレイヤーのスタート位置は障害物で塞がないように
-      let x, z;
-      do {
-        x = Math.random() * (size - 10) - (size / 2 - 5);
-        z = Math.random() * (size - 10) - (size / 2 - 5);
-      } while (Math.abs(x) < 5 && Math.abs(z) < 5);
-      
-      createWall(x, z, obstacleWidth, obstacleDepth);
+    // 階段の削除
+    if (this.stairs) {
+      this.scene.remove(this.stairs);
+      this.stairs.geometry.dispose();
+      this.stairs = undefined;
     }
   }
 
-  // 出口と衝突判定
-  public checkExitCollision(boundingBox: THREE.Box3): boolean {
-    for (const exit of this.exits) {
-      const exitBox = exit.userData.boundingBox || new THREE.Box3().setFromObject(exit);
-      if (boundingBox.intersectsBox(exitBox)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // 壁との衝突判定
   public checkWallCollision(boundingBox: THREE.Box3): boolean {
-    for (const wall of this.walls) {
-      const wallBox = wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
-      if (boundingBox.intersectsBox(wallBox)) {
-        return true;
-      }
-    }
-    return false;
+    const wallBoxes = this.walls.map(wall => new THREE.Box3().setFromObject(wall));
+    return wallBoxes.some(wallBox => boundingBox.intersectsBox(wallBox));
   }
 
-  // 壁のリストを取得（視線判定用）
-  public getWalls(): THREE.Object3D[] {
-    return this.walls;
+  public checkStairsCollision(boundingBox: THREE.Box3): { collides: boolean; nextLevel: number } {
+    if (!this.stairs) return { collides: false, nextLevel: this.currentLevel };
+    
+    const stairsBox = new THREE.Box3().setFromObject(this.stairs);
+    const pattern = FLOOR_PATTERNS[this.currentLevel];
+    
+    return {
+      collides: boundingBox.intersectsBox(stairsBox),
+      nextLevel: pattern.stairs.toLevel
+    };
   }
 
-  // 現在のレベルを取得
+  public checkExitCollision(boundingBox: THREE.Box3): boolean {
+    if (!this.stairs) return false;
+    const stairsBox = new THREE.Box3().setFromObject(this.stairs);
+    return boundingBox.intersectsBox(stairsBox);
+  }
+
   public getCurrentLevel(): number {
     return this.currentLevel;
   }
 
-  // リソースの解放
-  public dispose(): void {
-    this.clearLevel();
+  public getPlayerSpawnPosition(): THREE.Vector3 {
+    const pattern = FLOOR_PATTERNS[this.currentLevel];
+    if (pattern.playerSpawn) {
+      const spawnPosition = new THREE.Vector3(pattern.playerSpawn.x, 0, pattern.playerSpawn.y);
+      console.log(`Level ${this.currentLevel} Player Spawn Position:`, spawnPosition); // デバッグログを追加
+      return spawnPosition;
+    }
+    const defaultSpawnPosition = new THREE.Vector3(5, 0, 5);
+    console.log(`Level ${this.currentLevel} Player Spawn Position:`, defaultSpawnPosition, "(Using default)"); // デバッグログを追加
+    return new THREE.Vector3(5, 0, 5); // デフォルトのスポーン位置
   }
 
-  // Three.jsオブジェクトのリソース解放
-  private disposeObject(obj: THREE.Object3D): void {
-    obj.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach(material => material.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
+  // 壁のメッシュを取得
+  public getWalls(): THREE.Mesh[] {
+    return this.walls;
+  }
+
+  public dispose(): void {
+    this.clearLevel();
+    this.wallMaterial.dispose();
+    this.stairsMaterial.dispose();
   }
 }

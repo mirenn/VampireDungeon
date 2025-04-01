@@ -60,6 +60,7 @@ export class GameManager {
     // システムの初期化
     this.levelSystem = new LevelSystem(this.scene);
     this.playerSystem = new PlayerSystem(this.scene, this.camera);
+    this.playerSystem.setLevelSystem(this.levelSystem); // LevelSystemを設定
     this.enemySystem = new EnemySystem(this.scene);
     this.itemSystem = new ItemSystem(this.scene);
     
@@ -205,7 +206,6 @@ export class GameManager {
     this.playerSystem.update(deltaTime);
     this.enemySystem.update(deltaTime);
     this.itemSystem.update(deltaTime);
-    this.levelSystem.update(deltaTime);
     
     // コントロールの更新（使用していない場合は無視）
     if (this.controls) {
