@@ -73,30 +73,6 @@ export class PlayerSystem {
     const oldPosition = this.player.mesh.position.clone();
     let movementOccurred = false;
 
-    // キーボードによる移動処理（開発中の利便性のために残しておく）
-    const keyboardMoveSpeed = 10 * deltaTime;
-    
-    if (this.keyState['w'] || this.keyState['ArrowUp']) {
-      this.player.moveForward(keyboardMoveSpeed);
-      this.clearPath(); // キー入力があった場合、パスをリセット
-      movementOccurred = true;
-    }
-    if (this.keyState['s'] || this.keyState['ArrowDown']) {
-      this.player.moveBackward(keyboardMoveSpeed);
-      this.clearPath(); // キー入力があった場合、パスをリセット
-      movementOccurred = true;
-    }
-    if (this.keyState['a'] || this.keyState['ArrowLeft']) {
-      this.player.moveLeft(keyboardMoveSpeed);
-      this.clearPath(); // キー入力があった場合、パスをリセット
-      movementOccurred = true;
-    }
-    if (this.keyState['d'] || this.keyState['ArrowRight']) {
-      this.player.moveRight(keyboardMoveSpeed);
-      this.clearPath(); // キー入力があった場合、パスをリセット
-      movementOccurred = true;
-    }
-
     // パス追跡による移動処理
     if (this.pathToFollow.length > 0 && this.currentPathIndex < this.pathToFollow.length) {
       const currentTarget = this.pathToFollow[this.currentPathIndex];
