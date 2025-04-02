@@ -48,6 +48,12 @@ export class Grid {
     }
   }
   
+  // 原点座標を更新するメソッドを追加
+  public updateOrigin(originX: number, originY: number): void {
+    this.originX = originX;
+    this.originY = originY;
+  }
+  
   // 壁情報からグリッドを更新
   public updateFromWalls(walls: THREE.Object3D[], levelSize: number): void {
     // すべてのノードを歩行可能にリセット
@@ -176,133 +182,152 @@ export class PathFindingSystem {
   public setUpdateRequired(): void {
     this.updateRequired = true;
   }
-  // PathFindingSystem クラスに追加するデバッグ用可視化メソッド
-public createDebugVisualization(showPath: boolean = false, path: THREE.Vector3[] = []): THREE.Group {
-  const debugGroup = new THREE.Group();
   
-  // グリッドの全ノードを視覚化
-  const gridDimensions = this.grid.getDimensions();
-  for (let x = 0; x < gridDimensions.width; x++) {
-    for (let y = 0; y < gridDimensions.height; y++) {
-      const node = this.grid.getNode(x, y);
-      if (node) {
-        const worldPos = this.grid.gridToWorld(x, y);
+  // PathFindingSystem クラスに追加するデバッグ用可視化メソッド
+  public createDebugVisualization(playerPosition: THREE.Vector3, showPath: boolean = false, path: THREE.Vector3[] = []): THREE.Group {
+    const debugGroup = new THREE.Group();
+    
+    // プレイヤーの位置をグリッドの原点として設定
+    this.grid.updateOrigin(playerPosition.x, playerPosition.z);
+    
+    // プレイヤーの位置をグリッド座標に変換
+    const playerGridPos = this.grid.worldToGrid(playerPosition.x, playerPosition.z);
+    console.log(`プレイヤーグリッド座標: ${playerGridPos.x}, ${playerGridPos.y}`);
+    
+    // グリッドの次元を取得
+    const gridDimensions = this.grid.getDimensions();
+    console.log(`グリッド次元: ${gridDimensions.width} x ${gridDimensions.height}`);
+    
+    // グリッドのワールド座標原点を計算して表示（デバッグ用）
+    const originWorldPos = this.grid.gridToWorld(0, 0);
+    console.log(`グリッド原点のワールド座標: ${originWorldPos.x}, ${originWorldPos.z}`);
+    console.log(`プレイヤーのワールド座標: ${playerPosition.x}, ${playerPosition.z}`);
+    
+    // 可視化の範囲を調整（プレイヤー中心の限定された範囲のみ表示）
+    const visualizationRadius = 20; // 表示範囲の半径を大きくして確認しやすくする
+    
+    // 原点マーカーを追加（座標系の把握のため）
+    const originMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xff00ff }) // マゼンタ色
+    );
+    originMarker.position.set(originWorldPos.x, 0.5, originWorldPos.z);
+    debugGroup.add(originMarker);
+    
+    // プレイヤー周囲の限定された範囲のみをビジュアライズ
+    for (let offsetX = -visualizationRadius; offsetX <= visualizationRadius; offsetX++) {
+      for (let offsetY = -visualizationRadius; offsetY <= visualizationRadius; offsetY++) {
+        const x = playerGridPos.x + offsetX;
+        const y = playerGridPos.y + offsetY;
         
-        // ノードを表す平面を作成
-        const geometry = new THREE.PlaneGeometry(0.9, 0.9);
-        
-        // クリアランススコアに基づいて色を決定
-        let nodeColor;
-        if (!node.isWalkable) {
-          // 障害物は赤
-          nodeColor = 0xff0000;
-        } else {
-          // 壁からの距離（クリアランス）によって色の濃さを変える
-          const clearanceScore = this.getNodeClearanceScore(node);
-          if (clearanceScore <= 1) {
-            // 壁に隣接しているノードは黄色
-            nodeColor = 0xffff00;
-          } else if (clearanceScore <= 2) {
-            // 壁から少し離れたノードは薄い緑
-            nodeColor = 0x99ff99;
-          } else {
-            // 十分に空いているノードは通常の緑
-            nodeColor = 0x00ff00;
+        // グリッド範囲内かチェック
+        if (x >= 0 && x < gridDimensions.width && y >= 0 && y < gridDimensions.height) {
+          const node = this.grid.getNode(x, y);
+          if (node) {
+            const worldPos = this.grid.gridToWorld(x, y);
+            
+            // ノードを表す平面を作成
+            const geometry = new THREE.PlaneGeometry(0.9, 0.9);
+            
+            // ノードの状態に基づいて色を決定
+            let color = 0x00ff00; // デフォルト：移動可能（緑）
+            let opacity = 0.3;    // デフォルトの不透明度を下げる
+            
+            if (!node.isWalkable) {
+              color = 0xff0000; // 移動不可能（赤）
+              opacity = 0.7;    // 壁は少し目立つように
+            }
+            
+            // パスの一部であれば特別な色にする
+            if (showPath && path.length > 0) {
+              const worldPos3D = new THREE.Vector3(worldPos.x, 0, worldPos.z);
+              // パス上のポイントと近いかチェック
+              for (const pathPoint of path) {
+                if (pathPoint.distanceTo(worldPos3D) < 0.5) {
+                  color = 0x0000ff; // パス上（青）
+                  opacity = 0.8;    // パスはより目立つように
+                  break;
+                }
+              }
+            }
+            
+            // プレイヤー位置のノードは特別な色で表示
+            if (x === playerGridPos.x && y === playerGridPos.y) {
+              color = 0xffff00; // プレイヤー位置（黄色）
+              opacity = 0.9;    // より目立つように
+            }
+            
+            const material = new THREE.MeshBasicMaterial({ 
+              color: color,
+              transparent: true,
+              opacity: opacity,
+              side: THREE.DoubleSide
+            });
+            
+            const plane = new THREE.Mesh(geometry, material);
+            plane.position.set(worldPos.x, 0.1, worldPos.z);
+            plane.rotation.x = -Math.PI / 2;
+            
+            debugGroup.add(plane);
+            
+            // すべてのセルに座標を表示する（より濃い色で）
+            // 5セルごとに大きく表示してグリッド構造を把握しやすくする
+            const isMajorCell = (x % 5 === 0 && y % 5 === 0);
+            const scale = isMajorCell ? 0.7 : 0.4;
+            const coordText = this.createTextSprite(`${x},${y}`, 0x000000);
+            coordText.position.set(worldPos.x, 0.2, worldPos.z);
+            coordText.scale.set(scale, scale, 1);
+            debugGroup.add(coordText);
           }
-        }
-        
-        const material = new THREE.MeshBasicMaterial({ 
-          color: nodeColor,
-          transparent: true,
-          opacity: 0.3,
-          side: THREE.DoubleSide
-        });
-        
-        const plane = new THREE.Mesh(geometry, material);
-        plane.position.set(worldPos.x, 0.1, worldPos.z); // 地面より少し上に配置
-        plane.rotation.x = -Math.PI / 2; // 水平に配置
-        
-        debugGroup.add(plane);
-        
-        // グリッド座標を表示する（オプション）
-        if (x % 5 === 0 && y % 5 === 0) {
-          // TextGeometryの代わりにスプライトまたは単純なマーカーを使用
-          const textSprite = this.createTextSprite(`${x},${y}`);
-          textSprite.position.set(worldPos.x, 0.2, worldPos.z);
-          debugGroup.add(textSprite);
         }
       }
     }
+    
+    // プレイヤーの位置を強調表示
+    const playerWorldPos = this.grid.gridToWorld(playerGridPos.x, playerGridPos.y);
+    const playerMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x0000ff })
+    );
+    playerMarker.position.set(playerWorldPos.x, 0.5, playerWorldPos.z);
+    debugGroup.add(playerMarker);
+    
+    // パスを表示
+    if (showPath && path.length > 0) {
+      const pathMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 }); // 黄色い線
+      const pathPoints = path.map(p => new THREE.Vector3(p.x, 0.2, p.z));
+      const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
+      const pathLine = new THREE.Line(pathGeometry, pathMaterial);
+      debugGroup.add(pathLine);
+    }
+    
+    console.log(`デバッグ可視化: ${debugGroup.children.length}個のオブジェクトを作成`);
+    return debugGroup;
   }
-  
-  // パスを表示（オプション）
-  if (showPath && path.length > 0) {
-    // パスラインの作成
-    const pathPoints = [];
-    for (const point of path) {
-      pathPoints.push(new THREE.Vector3(point.x, 0.15, point.z)); // 地面より少し上に表示
-    }
-    
-    const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
-    const pathMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 3 });
-    const pathLine = new THREE.Line(pathGeometry, pathMaterial);
-    debugGroup.add(pathLine);
-    
-    // パスの各ポイントに球体を追加して視覚化
-    const sphereGeometry = new THREE.SphereGeometry(0.2, 8, 8);
-    const startMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff }); // 開始点は青
-    const endMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff });   // 終了点はマゼンタ
-    const pointMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // 中間点は水色
-    
-    // 開始点
-    if (path.length > 0) {
-      const startSphere = new THREE.Mesh(sphereGeometry, startMaterial);
-      startSphere.position.set(path[0].x, 0.2, path[0].z);
-      debugGroup.add(startSphere);
-    }
-    
-    // 中間点
-    for (let i = 1; i < path.length - 1; i++) {
-      const pointSphere = new THREE.Mesh(sphereGeometry, pointMaterial);
-      pointSphere.position.set(path[i].x, 0.2, path[i].z);
-      pointSphere.scale.setScalar(0.5); // 中間点は少し小さく
-      debugGroup.add(pointSphere);
-    }
-    
-    // 終了点
-    if (path.length > 1) {
-      const endSphere = new THREE.Mesh(sphereGeometry, endMaterial);
-      endSphere.position.set(path[path.length - 1].x, 0.2, path[path.length - 1].z);
-      debugGroup.add(endSphere);
-    }
-  }
-  
-  return debugGroup;
-}
 
-// TextGeometryの代わりにスプライトでグリッド座標を表示する
-private createTextSprite(text: string, color: number = 0x000000): THREE.Sprite {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) return new THREE.Sprite();
-  
-  canvas.width = 64;
-  canvas.height = 64;
-  
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.font = 'Bold 12px Arial';
-  context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-  context.textAlign = 'center';
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(0.5, 0.5, 1);
-  
-  return sprite;
-}
+  // TextGeometryの代わりにスプライトでグリッド座標を表示する
+  private createTextSprite(text: string, color: number = 0x000000): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return new THREE.Sprite();
+    
+    canvas.width = 64;
+    canvas.height = 64;
+    
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.font = 'Bold 12px Arial';
+    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+    context.textAlign = 'center';
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.5, 0.5, 1);
+    
+    return sprite;
+  }
   
   // フォールバックパスの生成（経路探索失敗時）
   private getFallbackPath(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {

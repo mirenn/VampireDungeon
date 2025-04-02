@@ -5,6 +5,7 @@ import { EnemySystem } from './systems/EnemySystem';
 import { ItemSystem } from './systems/ItemSystem';
 import { LevelSystem } from './systems/LevelSystem';
 import { PathFindingSystem } from './systems/PathFindingSystem';
+import { Player } from './entities/Player';
 
 export class GameManager {
   private scene: THREE.Scene;
@@ -252,12 +253,18 @@ export class GameManager {
     // プレイヤーのパスを取得
     const playerPath = this.playerSystem.getCurrentPath();
     
-    // パスファインディングシステムからデバッグオブジェクトを生成
-    this.pathfindingDebugObject = this.pathFindingSystem.createDebugVisualization(
-      true, // パスを表示
-      playerPath
-    );
+    // プレイヤーの位置を取得
+    const player = this.playerSystem.getPlayer();
+    if (player) {
+      // パスファインディングシステムからデバッグオブジェクトを生成
+      this.pathfindingDebugObject = this.pathFindingSystem.createDebugVisualization(
+        player.getPosition(),
+        true, // パスを表示
+        playerPath
+      );
+    }
     
+    if (!this.pathfindingDebugObject) return;
     // シーンに追加
     this.scene.add(this.pathfindingDebugObject);
     
