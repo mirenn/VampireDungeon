@@ -85,8 +85,9 @@ export class Grid {
   
   // 世界座標からグリッド上の位置を取得
   public worldToGrid(worldX: number, worldZ: number): { x: number, y: number } {
-    const gridX = Math.floor((worldX - this.originX + this.width * this.nodeSize / 2) / this.nodeSize);
-    const gridY = Math.floor((worldZ - this.originY + this.height * this.nodeSize / 2) / this.nodeSize);
+    // 修正: プレイヤーの位置を中心としたグリッド座標に変換
+    const gridX = Math.floor((worldX - this.originX) / this.nodeSize + this.width / 2);
+    const gridY = Math.floor((worldZ - this.originY) / this.nodeSize + this.height / 2);
     
     return {
       x: Math.max(0, Math.min(this.width - 1, gridX)),
@@ -96,6 +97,7 @@ export class Grid {
   
   // グリッド上の位置から世界座標を取得
   public gridToWorld(gridX: number, gridY: number): { x: number, z: number } {
+    // 修正: グリッド座標から世界座標に変換（計算式は変更なし、ただしロジックの整合性を保つ）
     const worldX = this.originX + (gridX - this.width / 2) * this.nodeSize + this.nodeSize / 2;
     const worldZ = this.originY + (gridY - this.height / 2) * this.nodeSize + this.nodeSize / 2;
     
@@ -189,6 +191,9 @@ export class PathFindingSystem {
     
     // プレイヤーの位置をグリッドの原点として設定
     this.grid.updateOrigin(playerPosition.x, playerPosition.z);
+    
+    // 原点を更新した場合は常にグリッドを更新する（重要）
+    this.updateGrid();
     
     // プレイヤーの位置をグリッド座標に変換
     const playerGridPos = this.grid.worldToGrid(playerPosition.x, playerPosition.z);
@@ -621,10 +626,9 @@ private addCornerRounding(path: THREE.Vector3[]): THREE.Vector3[] {
 
 // 経路探索のエントリーポイント
 public findPath(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] {
-  // グリッドの更新が必要な場合は更新
-  if (this.updateRequired) {
-    this.updateGrid();
-  }
+  // グリッドの原点をスタート位置に更新し、常にグリッドを再計算
+  this.grid.updateOrigin(startWorldPos.x, startWorldPos.z);
+  this.updateGrid();
   
   // 開始点と終了点をグリッド座標に変換
   const startGridPos = this.grid.worldToGrid(startWorldPos.x, startWorldPos.z);
