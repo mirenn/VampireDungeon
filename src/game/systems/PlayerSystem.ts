@@ -243,11 +243,6 @@ export class PlayerSystem {
         // パスをクリア
         this.clearPath();
         
-        // パスファインディングシステムにレベル変更を通知
-        if (this.pathFindingSystem) {
-          this.pathFindingSystem.setUpdateRequired();
-        }
-        
         // グローバルレベル情報を更新（UI用）
         (window as any).gameLevel = nextLevel;
       }

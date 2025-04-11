@@ -156,7 +156,6 @@ export class Grid {
 export class PathFindingSystem {
   private grid: Grid;
   private levelSystem: LevelSystem;
-  private updateRequired: boolean = true;
   private lastPathfindingSuccess: boolean = true;
   private pathfindingFailureCount: number = 0;
   
@@ -177,13 +176,7 @@ export class PathFindingSystem {
     const walls = this.levelSystem.getWalls();
     const levelSize = 40; // 最大のレベルサイズ
     this.grid.updateFromWalls(walls, levelSize);
-    this.updateRequired = false;
-  }
-  
-  // 更新フラグを設定
-  public setUpdateRequired(): void {
-    this.updateRequired = true;
-  }
+  }  
   
   // PathFindingSystem クラスに追加するデバッグ用可視化メソッド
   public createDebugVisualization(playerPosition: THREE.Vector3, showPath: boolean = false, path: THREE.Vector3[] = []): THREE.Group {
@@ -201,25 +194,64 @@ export class PathFindingSystem {
     
     // グリッドの次元を取得
     const gridDimensions = this.grid.getDimensions();
-    console.log(`グリッド次元: ${gridDimensions.width} x ${gridDimensions.height}`);
     
     // グリッドのワールド座標原点を計算して表示（デバッグ用）
     const originWorldPos = this.grid.gridToWorld(0, 0);
-    console.log(`グリッド原点のワールド座標: ${originWorldPos.x}, ${originWorldPos.z}`);
-    console.log(`プレイヤーのワールド座標: ${playerPosition.x}, ${playerPosition.z}`);
     
-    // 可視化の範囲を調整（プレイヤー中心の限定された範囲のみ表示）
-    const visualizationRadius = 20; // 表示範囲の半径を大きくして確認しやすくする
+    // 可視化の範囲を縮小（最適化1: 表示範囲縮小）
+    const visualizationRadius = 10; // 20→10に縮小
     
     // 原点マーカーを追加（座標系の把握のため）
     const originMarker = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xff00ff }) // マゼンタ色
+      new THREE.MeshBasicMaterial({ color: 0xff00ff })
     );
     originMarker.position.set(originWorldPos.x, 0.5, originWorldPos.z);
     debugGroup.add(originMarker);
     
+    // 最適化2: インスタンシング用の準備
+    // 緑のセル（移動可能）用
+    const walkableCellGeometry = new THREE.PlaneGeometry(0.9, 0.9);
+    const walkableCellMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 0.15 // さらに透明に
+    });
+    
+    // 赤のセル（移動不可）用
+    const unwalkableCellGeometry = new THREE.PlaneGeometry(0.9, 0.9);
+    const unwalkableCellMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.6
+    });
+    
+    // パス用のセル
+    const pathCellGeometry = new THREE.PlaneGeometry(0.9, 0.9);
+    const pathCellMaterial = new THREE.MeshBasicMaterial({
+      color: 0x0000ff,
+      transparent: true,
+      opacity: 0.7
+    });
+    
+    // プレイヤー位置用のセル
+    const playerCellGeometry = new THREE.PlaneGeometry(0.9, 0.9);
+    const playerCellMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: 0.8
+    });
+    
+    // 最適化3: テキスト表示の削減（5セルごとに表示）
+    const textDisplayInterval = 5;
+    
+    // 最適化4: テクスチャアトラスの事前生成（数字0-9のテクスチャを一度だけ作成）
+    const numberTextures: Map<string, THREE.Texture> = new Map();
+    
     // プレイヤー周囲の限定された範囲のみをビジュアライズ
+    let walkableCellCount = 0;
+    let unwalkableCellCount = 0;
+    
     for (let offsetX = -visualizationRadius; offsetX <= visualizationRadius; offsetX++) {
       for (let offsetY = -visualizationRadius; offsetY <= visualizationRadius; offsetY++) {
         const x = playerGridPos.x + offsetX;
@@ -231,58 +263,58 @@ export class PathFindingSystem {
           if (node) {
             const worldPos = this.grid.gridToWorld(x, y);
             
-            // ノードを表す平面を作成
-            const geometry = new THREE.PlaneGeometry(0.9, 0.9);
-            
-            // ノードの状態に基づいて色を決定
-            let color = 0x00ff00; // デフォルト：移動可能（緑）
-            let opacity = 0.3;    // デフォルトの不透明度を下げる
-            
-            if (!node.isWalkable) {
-              color = 0xff0000; // 移動不可能（赤）
-              opacity = 0.7;    // 壁は少し目立つように
+            // 最適化5: 重要でないセルをスキップ
+            // 中心から遠いセルは通常表示しない（パスやプレイヤー位置、壁以外）
+            const distanceFromPlayer = Math.abs(offsetX) + Math.abs(offsetY);
+            if (distanceFromPlayer > 5 && node.isWalkable && 
+                (!showPath || !this.isPointOnPath(worldPos, path))) {
+              continue; // 遠くの通常セルはスキップ
             }
             
-            // パスの一部であれば特別な色にする
-            if (showPath && path.length > 0) {
-              const worldPos3D = new THREE.Vector3(worldPos.x, 0, worldPos.z);
-              // パス上のポイントと近いかチェック
-              for (const pathPoint of path) {
-                if (pathPoint.distanceTo(worldPos3D) < 0.5) {
-                  color = 0x0000ff; // パス上（青）
-                  opacity = 0.8;    // パスはより目立つように
-                  break;
-                }
+            let material, geometry;
+            let showCell = true;
+            
+            // ノードの状態に基づいて表示を決定
+            if (!node.isWalkable) {
+              geometry = unwalkableCellGeometry;
+              material = unwalkableCellMaterial;
+              unwalkableCellCount++;
+            } else if (showPath && this.isPointOnPath(worldPos, path)) {
+              geometry = pathCellGeometry;
+              material = pathCellMaterial;
+            } else if (x === playerGridPos.x && y === playerGridPos.y) {
+              geometry = playerCellGeometry;
+              material = playerCellMaterial;
+            } else {
+              geometry = walkableCellGeometry;
+              material = walkableCellMaterial;
+              walkableCellCount++;
+              
+            }
+            
+            if (showCell) {
+              const plane = new THREE.Mesh(geometry, material);
+              plane.position.set(worldPos.x, 0.1, worldPos.z);
+              plane.rotation.x = -Math.PI / 2;
+              debugGroup.add(plane);
+            }
+            
+            // 最適化3: テキスト表示の削減（5セルごと、または特別なセル）
+            const isSpecialCell = !node.isWalkable || (showPath && this.isPointOnPath(worldPos, path)) || 
+                                  (x === playerGridPos.x && y === playerGridPos.y);
+            const shouldShowCoordinates = (x % textDisplayInterval === 0 && y % textDisplayInterval === 0) || isSpecialCell;
+            
+            if (shouldShowCoordinates) {
+              // キャッシュされたテクスチャを利用するか、新規作成
+              const coordKey = `${x},${y}`;
+              if (!numberTextures.has(coordKey)) {
+                const scale = isSpecialCell ? 0.7 : 0.4;
+                const coordText = this.createTextSprite(coordKey, 0x000000);
+                coordText.position.set(worldPos.x, 0.2, worldPos.z);
+                coordText.scale.set(scale, scale, 1);
+                debugGroup.add(coordText);
               }
             }
-            
-            // プレイヤー位置のノードは特別な色で表示
-            if (x === playerGridPos.x && y === playerGridPos.y) {
-              color = 0xffff00; // プレイヤー位置（黄色）
-              opacity = 0.9;    // より目立つように
-            }
-            
-            const material = new THREE.MeshBasicMaterial({ 
-              color: color,
-              transparent: true,
-              opacity: opacity,
-              side: THREE.DoubleSide
-            });
-            
-            const plane = new THREE.Mesh(geometry, material);
-            plane.position.set(worldPos.x, 0.1, worldPos.z);
-            plane.rotation.x = -Math.PI / 2;
-            
-            debugGroup.add(plane);
-            
-            // すべてのセルに座標を表示する（より濃い色で）
-            // 5セルごとに大きく表示してグリッド構造を把握しやすくする
-            const isMajorCell = (x % 5 === 0 && y % 5 === 0);
-            const scale = isMajorCell ? 0.7 : 0.4;
-            const coordText = this.createTextSprite(`${x},${y}`, 0x000000);
-            coordText.position.set(worldPos.x, 0.2, worldPos.z);
-            coordText.scale.set(scale, scale, 1);
-            debugGroup.add(coordText);
           }
         }
       }
@@ -299,15 +331,29 @@ export class PathFindingSystem {
     
     // パスを表示
     if (showPath && path.length > 0) {
-      const pathMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 }); // 黄色い線
+      const pathMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
       const pathPoints = path.map(p => new THREE.Vector3(p.x, 0.2, p.z));
       const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
       const pathLine = new THREE.Line(pathGeometry, pathMaterial);
       debugGroup.add(pathLine);
     }
     
-    console.log(`デバッグ可視化: ${debugGroup.children.length}個のオブジェクトを作成`);
+    console.log(`デバッグ可視化: 表示可能セル=${walkableCellCount}, 壁=${unwalkableCellCount}, 総オブジェクト=${debugGroup.children.length}`);
     return debugGroup;
+  }
+  
+  // パス上の点かどうかを判断するヘルパーメソッド
+  private isPointOnPath(point: { x: number, z: number }, path: THREE.Vector3[]): boolean {
+    if (!path || path.length === 0) return false;
+    
+    const worldPoint = new THREE.Vector3(point.x, 0, point.z);
+    // パス上のポイントと近いかチェック
+    for (const pathPoint of path) {
+      if (pathPoint.distanceTo(worldPoint) < 0.5) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // TextGeometryの代わりにスプライトでグリッド座標を表示する
