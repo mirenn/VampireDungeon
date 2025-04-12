@@ -6,6 +6,8 @@ import { ItemSystem } from './systems/ItemSystem';
 import { LevelSystem } from './systems/LevelSystem';
 import { PathFindingSystem } from './systems/PathFindingSystem';
 import { Player } from './entities/Player';
+import { Enemy } from './entities/Enemy'; // Enemyをインポート
+import { JellySlime } from './entities/JellySlime'; // JellySlimeをインポート
 
 export class GameManager {
   private scene: THREE.Scene;
@@ -222,11 +224,85 @@ export class GameManager {
     if (this.controls) {
       this.controls.update();
     }
-    
+
+    // --- 衝突判定とダメージ処理 ---
+    this.checkCollisions(deltaTime);
+    // --- ここまで追加 ---
+
     // レンダリング
     this.renderer.render(this.scene, this.camera);
   };
-  
+
+  // --- ここから新しいメソッドを追加 ---
+  // 衝突判定とダメージ処理を行うメソッド
+  private checkCollisions(deltaTime: number): void {
+    const player = this.playerSystem.getPlayer();
+    if (!player) return;
+
+    const playerPosition = player.getPosition();
+    const playerBoundingBox = player.mesh.userData.boundingBox as THREE.Box3;
+
+    const enemies = this.enemySystem.getEnemies();
+    const enemiesToRemove: Enemy[] = []; // 削除対象の敵リスト
+
+    enemies.forEach(enemy => {
+      const enemyPosition = enemy.getPosition();
+      const enemyBoundingBox = enemy.mesh.userData.boundingBox as THREE.Box3;
+
+      // 1. 敵からプレイヤーへの攻撃（体当たり）
+      if (playerBoundingBox && enemyBoundingBox && playerBoundingBox.intersectsBox(enemyBoundingBox)) {
+        if (enemy.attack()) {
+          console.log(`Player takes ${enemy.damage} damage from ${enemy.mesh.name}`);
+          player.takeDamage(enemy.damage);
+          (window as any).dispatchEvent(new CustomEvent('playerDamaged')); // UI更新用イベント
+        }
+      }
+
+      // 2. プレイヤーから敵への攻撃（Qキー）
+      if (this.keysPressed['q'] || this.keysPressed['Q']) { // Qキーが押されているかチェック
+        // プレイヤーの攻撃スキルが使用可能か、クールダウン中でないかなどをチェック（Playerクラスに依存）
+        // ここでは単純化のため、キーが押されていれば攻撃試行とする
+        const distance = playerPosition.distanceTo(enemyPosition);
+        if (distance <= player.attackRange) { // 攻撃範囲内にいるかチェック
+           // プレイヤーの攻撃力を取得（Playerクラスに依存）
+           const playerAttackPower = player.attackPower; // Playerクラスから攻撃力を取得
+           console.log(`${enemy.mesh.name} takes ${playerAttackPower} damage from Player`);
+           enemy.takeDamage(playerAttackPower);
+           if (enemy.health <= 0) {
+             console.log(`${enemy.mesh.name} defeated!`);
+             if (!enemiesToRemove.includes(enemy)) { // 重複追加を防ぐ
+               enemiesToRemove.push(enemy);
+             }
+           }
+           // 攻撃後はキー状態をリセットするか、クールダウンを設けるなどの処理が必要になる場合がある
+           // this.keysPressed['q'] = false; // 例: 一度攻撃したらキー状態をリセット
+           // this.keysPressed['Q'] = false;
+        }
+      }
+
+
+      // 3. 敵の体力が0以下になったかチェック
+      if (enemy.health <= 0 && !enemiesToRemove.includes(enemy)) {
+         console.log(`${enemy.mesh.name} health reached zero.`);
+         enemiesToRemove.push(enemy);
+      }
+    });
+
+    // 削除対象の敵を処理
+    enemiesToRemove.forEach(enemy => {
+      const grantExperience = !(enemy instanceof JellySlime && enemy.getSplitLevel() > 0);
+      this.enemySystem.removeEnemy(enemy, grantExperience);
+    });
+
+    // プレイヤーの体力が0以下になった場合のゲームオーバー処理
+    if (player.health <= 0) {
+      console.log("Game Over!");
+      this.stop();
+      // TODO: ゲームオーバーUI表示などの処理を追加
+    }
+  }
+  // --- ここまで新しいメソッドを追加 ---
+
   // パスファインディングデバッグビジュアライゼーションの表示切り替え
   private togglePathfindingDebug(): void {
     this.showPathfindingDebug = !this.showPathfindingDebug;

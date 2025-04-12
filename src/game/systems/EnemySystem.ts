@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from '../entities/Enemy';
+import { JellySlime } from '../entities/JellySlime';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
 
@@ -112,7 +113,8 @@ export class EnemySystem {
     // 敵の生成
     pattern.spawnPoints.forEach((point, index) => {
       if (index < pattern.count) {
-        const enemy = new Enemy();
+        // const enemy = new Enemy(); // 元のEnemy生成をコメントアウト
+        const enemy = new JellySlime(); // JellySlimeを生成
         enemy.mesh.position.set(point.x, 0, point.y);
         this.enemies.push(enemy);
         this.scene.add(enemy.mesh);
@@ -123,6 +125,60 @@ export class EnemySystem {
         }
       }
     });
+  }
+
+  // 敵を削除する処理（分裂も考慮）
+  public removeEnemy(enemyToRemove: Enemy, grantExperience: boolean = true): void {
+    const index = this.enemies.indexOf(enemyToRemove);
+    if (index > -1) {
+      // シーンからメッシュを削除
+      this.scene.remove(enemyToRemove.mesh);
+      // リソース解放
+      enemyToRemove.dispose();
+      // 配列から削除
+      this.enemies.splice(index, 1);
+
+      // プレイヤーに経験値を与える（分裂した場合は経験値を与えないように調整可能）
+      if (grantExperience && this.player) {
+        this.player.addExperience(enemyToRemove.experienceValue);
+      }
+
+      // 分裂処理
+      if (enemyToRemove instanceof JellySlime && enemyToRemove.canSplit()) {
+        this.splitJellySlime(enemyToRemove.getPosition());
+      }
+
+      // すべての敵を倒したかチェック
+      if (this.enemies.length === 0 && this.levelSystem) {
+        // 次のレベルへ進むなどの処理
+        console.log("All enemies defeated!");
+        // this.levelSystem.nextLevel(); // 必要に応じてコメント解除
+      }
+    }
+  }
+
+  // ジェリー・スライムの分裂処理
+  private splitJellySlime(position: THREE.Vector3): void {
+    console.log("Jelly Slime splitting!");
+    const offsetAmount = 1.0; // 分裂後のスライムの出現位置オフセット
+
+    for (let i = 0; i < 2; i++) {
+      const splitSlime = new JellySlime(1); // 分裂後のスライム (splitLevel = 1)
+      const offset = new THREE.Vector3(
+        (Math.random() - 0.5) * offsetAmount,
+        0,
+        (Math.random() - 0.5) * offsetAmount
+      );
+      splitSlime.mesh.position.copy(position).add(offset);
+
+      this.enemies.push(splitSlime);
+      this.scene.add(splitSlime.mesh);
+
+      // 分裂後のスライムにも検知範囲表示設定を適用
+      if (this.showDetectionRanges) {
+        splitSlime.addDetectionRangeToScene(this.scene);
+      }
+    }
   }
 
   private clearEnemies(): void {
