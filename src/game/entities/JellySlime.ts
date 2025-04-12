@@ -6,6 +6,7 @@ export class JellySlime extends Enemy {
   private jumpTime: number = 0;
   private jumpHeight: number = 0.5;
   private jumpSpeed: number = 4;
+  private slimeMesh: THREE.Mesh; // ★★★ 追加: スライム本体のメッシュを保持 ★★★
 
   constructor(splitLevel: number = 0) {
     super();
@@ -21,33 +22,38 @@ export class JellySlime extends Enemy {
     // メッシュをジェリー・スライム用に変更
     this.mesh.clear(); // 既存のメッシュをクリア
 
-    const size = this.splitLevel === 0 ? 0.6 : 0.4; // 分裂後はサイズを小さく
+    const size = this.splitLevel === 0 ? 0.6 : 0.4;
     const geometry = new THREE.SphereGeometry(size, 16, 16);
     const material = new THREE.MeshStandardMaterial({
-      color: 0x44aa88, // 緑がかった色
+      color: 0x44aa88,
       transparent: true,
       opacity: 0.8,
     });
-    const slimeMesh = new THREE.Mesh(geometry, material);
-    slimeMesh.castShadow = true;
-    slimeMesh.position.y = size; // 地面に接するように調整
+    // ★★★ 変更: クラスプロパティに代入 ★★★
+    this.slimeMesh = new THREE.Mesh(geometry, material);
+    this.slimeMesh.castShadow = true;
+    // ★★★ 変更: slimeMesh の初期Y位置を設定 ★★★
+    this.slimeMesh.position.y = size;
 
-    this.mesh.add(slimeMesh); // 新しいメッシュを追加
+    // ★★★ 変更: this.slimeMesh を this.mesh に追加 ★★★
+    this.mesh.add(this.slimeMesh);
     this.mesh.name = 'jellySlime';
 
-    // バウンディングボックスの再計算
+    this.createHPBar();
+
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
   }
 
   public update(deltaTime: number): void {
-    super.update(deltaTime); // 親クラスのupdateを呼び出す
+    super.update(deltaTime); // 親クラスのupdate (HPバー位置更新など)
 
     // 跳ねるアニメーション
     this.jumpTime += deltaTime * this.jumpSpeed;
     const jumpOffset = Math.abs(Math.sin(this.jumpTime)) * this.jumpHeight;
-    this.mesh.position.y = (this.splitLevel === 0 ? 0.6 : 0.4) + jumpOffset; // 基本の高さ + ジャンプオフセット
+    // ★★★ 変更: this.mesh ではなく this.slimeMesh のY座標を変更 ★★★
+    this.slimeMesh.position.y = (this.splitLevel === 0 ? 0.6 : 0.4) + jumpOffset;
 
-    // バウンディングボックスの更新も忘れずに
+    // バウンディングボックスはグループ全体で更新
     this.mesh.userData.boundingBox.setFromObject(this.mesh);
   }
 
@@ -88,9 +94,16 @@ export class JellySlime extends Enemy {
     // 必要であれば、ダメージを受けた際の特殊効果などをここに追加
   }
 
-  // リソース解放処理もオーバーライド（必要であれば）
+  // ★★★ 修正: disposeメソッドでslimeMeshのリソースも解放 ★★★
   public dispose(): void {
+    if (this.slimeMesh) {
+        this.slimeMesh.geometry.dispose();
+        if (Array.isArray(this.slimeMesh.material)) {
+            this.slimeMesh.material.forEach(m => m.dispose());
+        } else {
+            this.slimeMesh.material.dispose();
+        }
+    }
     super.dispose();
-    // JellySlime固有のリソース解放があればここに追加
   }
 }

@@ -15,27 +15,27 @@ export class GameManager {
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls | null = null; // OrbitControlsをnullで初期化
   private clock: THREE.Clock;
-  
+
   private playerSystem: PlayerSystem;
   private enemySystem: EnemySystem;
   private itemSystem: ItemSystem;
   private levelSystem: LevelSystem;
   private pathFindingSystem: PathFindingSystem;
-  
+
   private isRunning: boolean = false;
-  
+
   // デバッグ用の変数
   private showPathfindingDebug: boolean = false;
   private pathfindingDebugObject: THREE.Group | null = null;
   private debugLastPath: THREE.Vector3[] = [];
-  
+
   // キーボード入力の状態を管理
   private keysPressed: { [key: string]: boolean } = {};
 
   constructor(private container: HTMLElement) {
     // シーンの作成
     this.scene = new THREE.Scene();
-    
+
     // カメラの作成（正射影カメラに変更）
     const aspect = window.innerWidth / window.innerHeight;
     const frustumSize = 30; // より広い視野に調整
@@ -47,46 +47,46 @@ export class GameManager {
       0.1,
       1000
     );
-    
+
     // カメラの初期位置を設定
     this.camera.position.set(0, 20, 20);
     this.camera.lookAt(0, 0, 0);
-    
+
     // レンダラーの作成
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.shadowMap.enabled = true;
     this.container.appendChild(this.renderer.domElement);
-    
+
     // OrbitControlsを使用しない（プレイヤー追従カメラを使用するため）
     // 右クリックでの移動機能を優先するため、コントロールは無効化
-    
+
     // クロックの初期化
     this.clock = new THREE.Clock();
-    
+
     // システムの初期化
     this.levelSystem = new LevelSystem(this.scene);
     this.playerSystem = new PlayerSystem(this.scene, this.camera);
     this.playerSystem.setLevelSystem(this.levelSystem); // LevelSystemを設定
     this.enemySystem = new EnemySystem(this.scene);
     this.itemSystem = new ItemSystem(this.scene);
-    
+
     // パスファインディングシステムの初期化（LevelSystemに依存）
     this.pathFindingSystem = new PathFindingSystem(this.levelSystem, 1);
-    
+
     // イベントリスナーの設定
     window.addEventListener('resize', this.onWindowResize.bind(this));
     window.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('keyup', this.onKeyUp.bind(this));
   }
-  
+
   // ゲームの初期化
   public init(): void {
     // 環境光の追加
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     this.scene.add(ambientLight);
-    
+
     // 平行光源の追加（太陽光）
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 10, 5);
@@ -94,10 +94,10 @@ export class GameManager {
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(directionalLight);
-    
+
     // 地面の追加
     const groundGeometry = new THREE.PlaneGeometry(100, 100);
-    const groundMaterial = new THREE.MeshStandardMaterial({ 
+    const groundMaterial = new THREE.MeshStandardMaterial({
       color: 0x1a472a,
       roughness: 0.8,
       metalness: 0.2
@@ -106,83 +106,83 @@ export class GameManager {
     ground.rotation.x = -Math.PI / 2; // 水平にする
     ground.receiveShadow = true;
     this.scene.add(ground);
-    
+
     // 各システムの初期化
     this.levelSystem.init();
     this.playerSystem.init();
     this.enemySystem.init();
     this.itemSystem.init();
-    
+
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
-    
+
     // パスファインディングシステムにレベル変更を通知
     this.pathFindingSystem.updateGrid();
-    
+
     // プレイヤーの参照をシステム間で共有
     const player = this.playerSystem.getPlayer();
     if (player) {
       this.enemySystem.setPlayer(player);
       this.itemSystem.setPlayer(player);
-      
+
       // レベルシステムの参照を設定
       this.playerSystem.setLevelSystem(this.levelSystem);
       this.enemySystem.setLevelSystem(this.levelSystem);
-      
+
       // パスファインディングシステムの参照を設定
       this.playerSystem.setPathFindingSystem(this.pathFindingSystem);
-      
+
       // グローバルにプレイヤー情報を公開（UIコンポーネント用）
       (window as any).gamePlayer = player;
       (window as any).gameLevel = this.levelSystem.getCurrentLevel();
     }
   }
-  
+
   // ゲームの開始
   public start(): void {
     if (this.isRunning) return;
-    
+
     this.isRunning = true;
     this.clock.start();
     this.animate();
   }
-  
+
   // ゲームの停止
   public stop(): void {
     this.isRunning = false;
     this.clock.stop();
   }
-  
+
   // リソースの解放
   public dispose(): void {
     this.stop();
-    
+
     // イベントリスナーの削除
     window.removeEventListener('resize', this.onWindowResize.bind(this));
     window.removeEventListener('keydown', this.onKeyDown.bind(this));
     window.removeEventListener('keyup', this.onKeyUp.bind(this));
-    
+
     // システムのクリーンアップ
     this.playerSystem.dispose();
     this.enemySystem.dispose();
     this.itemSystem.dispose();
     this.levelSystem.dispose();
-    
+
     // Three.jsリソースの解放
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
-  
+
   // リサイズ対応
   private onWindowResize(): void {
     const aspect = window.innerWidth / window.innerHeight;
     const frustumSize = 20;
-    
+
     this.camera.left = frustumSize * aspect / -2;
     this.camera.right = frustumSize * aspect / 2;
     this.camera.top = frustumSize / 2;
     this.camera.bottom = frustumSize / -2;
-    
+
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
@@ -190,36 +190,36 @@ export class GameManager {
   // キーダウンイベントハンドラ
   private onKeyDown(event: KeyboardEvent): void {
     this.keysPressed[event.key] = true;
-    
+
     // Vキーで敵の視認範囲表示をトグル
     if (event.key === 'v' || event.key === 'V') {
       this.enemySystem.toggleDetectionRanges();
     }
-    
+
     // Dキーでパスファインディングのデバッグビジュアライゼーションをトグル
     if (event.key === 'd' || event.key === 'D') {
       this.togglePathfindingDebug();
     }
   }
-  
+
   // キーアップイベントハンドラ
   private onKeyUp(event: KeyboardEvent): void {
     this.keysPressed[event.key] = false;
   }
-  
+
   // アニメーションループ
   private animate = (): void => {
     if (!this.isRunning) return;
-    
+
     requestAnimationFrame(this.animate);
-    
+
     const deltaTime = this.clock.getDelta();
-    
+
     // 各システムの更新
     this.playerSystem.update(deltaTime);
     this.enemySystem.update(deltaTime);
     this.itemSystem.update(deltaTime);
-    
+
     // コントロールの更新（使用していない場合は無視）
     if (this.controls) {
       this.controls.update();
@@ -264,27 +264,29 @@ export class GameManager {
         // ここでは単純化のため、キーが押されていれば攻撃試行とする
         const distance = playerPosition.distanceTo(enemyPosition);
         if (distance <= player.attackRange) { // 攻撃範囲内にいるかチェック
-           // プレイヤーの攻撃力を取得（Playerクラスに依存）
-           const playerAttackPower = player.attackPower; // Playerクラスから攻撃力を取得
-           console.log(`${enemy.mesh.name} takes ${playerAttackPower} damage from Player`);
-           enemy.takeDamage(playerAttackPower);
-           if (enemy.health <= 0) {
-             console.log(`${enemy.mesh.name} defeated!`);
-             if (!enemiesToRemove.includes(enemy)) { // 重複追加を防ぐ
-               enemiesToRemove.push(enemy);
-             }
-           }
-           // 攻撃後はキー状態をリセットするか、クールダウンを設けるなどの処理が必要になる場合がある
-           // this.keysPressed['q'] = false; // 例: 一度攻撃したらキー状態をリセット
-           // this.keysPressed['Q'] = false;
+          // プレイヤーの攻撃力を取得（Playerクラスに依存）
+          const playerAttackPower = player.attackPower; // Playerクラスから攻撃力を取得
+          console.log(`${enemy.mesh.name} takes ${playerAttackPower} damage from Player`);
+          enemy.takeDamage(playerAttackPower);
+          // HPバーを更新
+          enemy.updateHPBar();
+          if (enemy.health <= 0) {
+            console.log(`${enemy.mesh.name} defeated!`);
+            if (!enemiesToRemove.includes(enemy)) { // 重複追加を防ぐ
+              enemiesToRemove.push(enemy);
+            }
+          }
+          // 攻撃後はキー状態をリセットするか、クールダウンを設けるなどの処理が必要になる場合がある
+          // this.keysPressed['q'] = false; // 例: 一度攻撃したらキー状態をリセット
+          // this.keysPressed['Q'] = false;
         }
       }
 
 
       // 3. 敵の体力が0以下になったかチェック
       if (enemy.health <= 0 && !enemiesToRemove.includes(enemy)) {
-         console.log(`${enemy.mesh.name} health reached zero.`);
-         enemiesToRemove.push(enemy);
+        console.log(`${enemy.mesh.name} health reached zero.`);
+        enemiesToRemove.push(enemy);
       }
     });
 
@@ -307,7 +309,7 @@ export class GameManager {
   private togglePathfindingDebug(): void {
     this.showPathfindingDebug = !this.showPathfindingDebug;
     console.log(`パスファインディングデバッグ表示: ${this.showPathfindingDebug ? 'オン' : 'オフ'}`);
-    
+
     if (this.showPathfindingDebug) {
       this.updatePathfindingDebugVisualization();
     } else {
@@ -318,17 +320,17 @@ export class GameManager {
       }
     }
   }
-  
+
   // パスファインディングデバッグビジュアライゼーションの更新
   private updatePathfindingDebugVisualization(): void {
     // 前回のデバッグオブジェクトを削除
     if (this.pathfindingDebugObject) {
       this.scene.remove(this.pathfindingDebugObject);
     }
-    
+
     // プレイヤーのパスを取得
     const playerPath = this.playerSystem.getCurrentPath();
-    
+
     // プレイヤーの位置を取得
     const player = this.playerSystem.getPlayer();
     if (player) {
@@ -339,11 +341,11 @@ export class GameManager {
         playerPath
       );
     }
-    
+
     if (!this.pathfindingDebugObject) return;
     // シーンに追加
     this.scene.add(this.pathfindingDebugObject);
-    
+
     // 最後のパスを記録
     this.debugLastPath = [...playerPath];
   }
