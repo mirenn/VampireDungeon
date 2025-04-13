@@ -19,8 +19,8 @@ export class Enemy {
 
   // HPバー関連
   protected hpBarContainer: THREE.Group | null = null; // HPバー全体を含むグループ
-  private hpBarBackground: THREE.Mesh | null = null; // HPバーの背景
-  private hpBarFill: THREE.Mesh | null = null; // HPバーのフィル部分
+  protected hpBarBackground: THREE.Mesh | null = null; // HPバーの背景
+  protected hpBarFill: THREE.Mesh | null = null; // HPバーのフィル部分
 
   constructor() {
     // 敵のメッシュを作成
@@ -138,9 +138,28 @@ export class Enemy {
     if (this.hpBarFill) {
       // 現在のHP比率
       const hpRatio = this.health / this.maxHealth;
+      console.log(`HP Ratio: ${hpRatio}`, this.health, this.maxHealth);
       
-      // スケール調整でHPバーの長さを変更
-      this.hpBarFill.scale.x = Math.max(0, hpRatio);
+      // スケーリングではなくジオメトリのサイズを直接変更する方法に修正
+      if (!this.hpBarFill.userData.originalWidth) {
+        // オリジナルの幅を保存（初回のみ）
+        this.hpBarFill.userData.originalWidth = 1.2;
+      }
+      
+      // サイズを直接設定するためにジオメトリを新しく作り直す
+      const newWidth = this.hpBarFill.userData.originalWidth * hpRatio;
+      const newGeometry = new THREE.PlaneGeometry(newWidth, 0.15);
+      
+      // ジオメトリを左揃えにするために位置調整
+      newGeometry.translate(newWidth / 2, 0, 0);
+      
+      // 古いジオメトリを破棄して新しいものに置き換え
+      const oldGeometry = this.hpBarFill.geometry;
+      this.hpBarFill.geometry = newGeometry;
+      oldGeometry.dispose();
+      
+      // HPバーの位置を左端に揃える
+      this.hpBarFill.position.x = -0.6;
       
       // HP残量に応じて色を変更
       const fillMaterial = this.hpBarFill.material as THREE.MeshBasicMaterial;

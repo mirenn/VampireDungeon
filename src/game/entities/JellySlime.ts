@@ -39,10 +39,12 @@ export class JellySlime extends Enemy {
     this.mesh.add(this.slimeMesh);
     this.mesh.name = 'jellySlime';
 
+    // HPバーを作成（親クラスで作成したものはmesh.clear()で削除されているため再作成が必要）
     this.createHPBar();
-
+    
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
   }
+  
   public update(deltaTime: number): void {
     // 跳ねるアニメーション
     this.jumpTime += deltaTime * this.jumpSpeed;
