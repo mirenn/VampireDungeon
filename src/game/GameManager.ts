@@ -256,29 +256,12 @@ export class GameManager {
           player.takeDamage(enemy.damage);
           (window as any).dispatchEvent(new CustomEvent('playerDamaged')); // UI更新用イベント
         }
-      }
-
-      // 2. プレイヤーから敵への攻撃（Qキー）
-      if (this.keysPressed['q'] || this.keysPressed['Q']) { // Qキーが押されているかチェック
-        // プレイヤーの攻撃スキルが使用可能か、クールダウン中でないかなどをチェック（Playerクラスに依存）
-        // ここでは単純化のため、キーが押されていれば攻撃試行とする
-        const distance = playerPosition.distanceTo(enemyPosition);
-        if (distance <= player.attackRange) { // 攻撃範囲内にいるかチェック
-          // プレイヤーの攻撃力を取得（Playerクラスに依存）
-          const playerAttackPower = player.attackPower; // Playerクラスから攻撃力を取得
-          console.log(`${enemy.mesh.name} takes ${playerAttackPower} damage from Player`);
-          enemy.takeDamage(playerAttackPower);
-          // HPバーを更新
-          enemy.updateHPBar();
-          if (enemy.health <= 0) {
-            console.log(`${enemy.mesh.name} defeated!`);
-            if (!enemiesToRemove.includes(enemy)) { // 重複追加を防ぐ
-              enemiesToRemove.push(enemy);
-            }
-          }
-          // 攻撃後はキー状態をリセットするか、クールダウンを設けるなどの処理が必要になる場合がある
-          // this.keysPressed['q'] = false; // 例: 一度攻撃したらキー状態をリセット
-          // this.keysPressed['Q'] = false;
+      }      // 2. プレイヤーから敵への攻撃は玉が当たった時に処理するため、このブロックは削除
+      // 敵の体力が0以下になったかチェック
+      if (enemy.health <= 0) {
+        if (!enemiesToRemove.includes(enemy)) {
+          console.log(`${enemy.mesh.name} defeated!`);
+          enemiesToRemove.push(enemy);
         }
       }
 

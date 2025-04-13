@@ -45,8 +45,10 @@ export class Enemy {
     this.mesh = enemyGroup;
     this.mesh.name = 'enemy';
     
-    // 衝突判定用のバウンディングボックス
+    // 衝突判定用のバウンディングボックス - より大きく設定
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+    this.mesh.userData.boundingBox.expandByScalar(0.2); // 少し大きめに設定
+    this.mesh.userData.type = 'enemy';
 
     // 視認範囲の可視化メッシュを作成（初期状態では非表示）
     this.createDetectionRangeMesh();
@@ -56,8 +58,10 @@ export class Enemy {
   }
   
   public update(deltaTime: number): void {
-    // バウンディングボックスの更新
-    this.mesh.userData.boundingBox.setFromObject(this.mesh);
+    // バウンディングボックスの更新 - より正確に
+    const box = new THREE.Box3().setFromObject(this.mesh);
+    box.expandByScalar(0.2); // 少し大きめに
+    this.mesh.userData.boundingBox = box;
     
     // 攻撃クールダウンの更新
     if (this.attackCooldown > 0) {
@@ -270,15 +274,27 @@ export class Enemy {
   
   // ダメージを受ける
   public takeDamage(amount: number): void {
+    console.log(`Enemy taking damage: ${amount}`);
     this.health -= amount;
     if (this.health < 0) {
       this.health = 0;
     }
+    
+    // HPバーを更新
+    this.updateHPBar();
   }
   
   // 敵の位置を取得
   public getPosition(): THREE.Vector3 {
     return this.mesh.position.clone();
+  }
+  
+  // 衝突判定用のヘルパー関数
+  public checkCollision(box: THREE.Box3): boolean {
+    if (!this.mesh.userData.boundingBox) {
+      this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+    }
+    return this.mesh.userData.boundingBox.intersectsBox(box);
   }
   
   // リソースの解放

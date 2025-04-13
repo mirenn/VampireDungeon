@@ -290,21 +290,29 @@ export class PlayerSystem {
       for (const marker of this.pathMarkers) {
         marker.visible = this.showPath;
       }
-    }
-
-    // Qキーによる攻撃処理を追加
+    }    // Qキーによる攻撃処理を追加
     if (event.key === 'q' || event.key === 'Q') {
       if (this.player && this.player.useSkill('basicAttack')) {
         console.log('攻撃が発動しました');
         
         // マウス位置からの方向を計算
         const attackDirection = this.getDirectionToMousePosition();
+        
+        // 敵の情報を取得する関数を用意
+        const getEnemiesFunction = () => {
+          // GameManagerのenemySystemから敵を取得するため、window経由でアクセス
+          if ((window as any).gameManager && (window as any).gameManager.enemySystem) {
+            return (window as any).gameManager.enemySystem.getEnemies();
+          }
+          return [];
+        };
+        
         if (attackDirection) {
-          // 方向を指定して攻撃エフェクトを表示
-          this.player.showAttackEffect(attackDirection);
+          // 方向を指定して攻撃エフェクトを表示し、敵の情報を渡す
+          this.player.showAttackEffect(attackDirection, getEnemiesFunction);
         } else {
           // マウス方向が取得できなかった場合は通常の攻撃方向を使用
-          this.player.showAttackEffect();
+          this.player.showAttackEffect(undefined, getEnemiesFunction);
         }
       }
     }

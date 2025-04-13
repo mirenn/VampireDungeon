@@ -42,7 +42,12 @@ export class JellySlime extends Enemy {
     // HPバーを作成（親クラスで作成したものはmesh.clear()で削除されているため再作成が必要）
     this.createHPBar();
     
+    // バウンディングボックスを初期化し、余裕を持たせる
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+    this.mesh.userData.boundingBox.expandByScalar(0.3); // 衝突判定を少し大きめに
+    
+    // スライムとしての衝突判定のためにタイプを追加
+    this.mesh.userData.type = 'jellySlime';
   }
   
   public update(deltaTime: number): void {
@@ -52,8 +57,19 @@ export class JellySlime extends Enemy {
     // ★★★ 変更: this.mesh ではなく this.slimeMesh のY座標を変更 ★★★
     this.slimeMesh.position.y = (this.splitLevel === 0 ? 0.6 : 0.4) + jumpOffset;
 
-    // バウンディングボックスはグループ全体で更新
-    this.mesh.userData.boundingBox.setFromObject(this.mesh);
+    // バウンディングボックスの更新 - 跳ねる高さを考慮した大きめのボックスにする
+    const box = new THREE.Box3().setFromObject(this.slimeMesh);
+    
+    // Y軸方向に余分に拡張して、跳ねる全範囲をカバー
+    const maxJumpHeight = this.jumpHeight + this.baseSize;
+    box.min.y = this.mesh.position.y; // 地面レベル
+    box.max.y = this.mesh.position.y + maxJumpHeight * 2; // 最大跳躍高さ
+    
+    // XZ平面では少し大きめに設定
+    box.expandByScalar(0.3);
+    
+    // 更新したバウンディングボックスを設定
+    this.mesh.userData.boundingBox = box;
 
     // HPバーの更新は最後に行う（スライムの位置変更の後）
     super.update(deltaTime);
@@ -82,6 +98,19 @@ export class JellySlime extends Enemy {
     }
   }
 
+  // 攻撃判定用のチェック機能を追加
+  public checkCollision(box: THREE.Box3): boolean {
+    // バウンディングボックスが正しく設定されているか確認
+    if (!this.mesh.userData.boundingBox) {
+      // 設定されていない場合は作成
+      this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+      this.mesh.userData.boundingBox.expandByScalar(0.3);
+    }
+    
+    // 衝突判定
+    return this.mesh.userData.boundingBox.intersectsBox(box);
+  }
+
   public canSplit(): boolean {
     return this.splitLevel === 0;
   }
@@ -90,10 +119,21 @@ export class JellySlime extends Enemy {
     return this.splitLevel;
   }
 
-  // ダメージを受けた際の処理（オーバーライドは不要かもしれないが、将来的な拡張用に残す）
+  // ダメージを受けた際の処理
   public takeDamage(amount: number): void {
+    console.log(`JellySlime taking damage: ${amount}`);
     super.takeDamage(amount);
-    // 必要であれば、ダメージを受けた際の特殊効果などをここに追加
+    
+    // ダメージ効果の視覚表現（点滅など）
+    if (this.slimeMesh) {
+      const material = this.slimeMesh.material as THREE.MeshStandardMaterial;
+      material.emissive = new THREE.Color(0xff0000);
+      
+      // 0.3秒後に通常の色に戻す
+      setTimeout(() => {
+        material.emissive = new THREE.Color(0x000000);
+      }, 300);
+    }
   }
 
   // ★★★ 修正: disposeメソッドでslimeMeshのリソースも解放 ★★★

@@ -48,6 +48,7 @@ export class EnemySystem {
   private levelSystem: LevelSystem | null = null;
   private scene: THREE.Scene;
   private showDetectionRanges: boolean = false;
+  private raycaster: THREE.Raycaster = new THREE.Raycaster(); // 視線判定用
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -113,8 +114,8 @@ export class EnemySystem {
     // 敵の生成
     pattern.spawnPoints.forEach((point, index) => {
       if (index < pattern.count) {
-        // const enemy = new Enemy(); // 元のEnemy生成をコメントアウト
-        const enemy = new JellySlime(); // JellySlimeを生成
+        // JellySlimeを生成（分裂レベル0 = 元のサイズ）
+        const enemy = new JellySlime(0);
         enemy.mesh.position.set(point.x, 0, point.y);
         this.enemies.push(enemy);
         this.scene.add(enemy.mesh);
@@ -127,20 +128,32 @@ export class EnemySystem {
     });
   }
 
+  // 敵がシーン内の全てのプレイヤーを取得
+  public getEnemies(): Enemy[] {
+    return this.enemies;
+  }
+
   // 敵を削除する処理（分裂も考慮）
   public removeEnemy(enemyToRemove: Enemy, grantExperience: boolean = true): void {
     const index = this.enemies.indexOf(enemyToRemove);
     if (index > -1) {
       // シーンからメッシュを削除
       this.scene.remove(enemyToRemove.mesh);
+      
+      // 視認範囲の表示も削除
+      if (this.showDetectionRanges) {
+        enemyToRemove.removeDetectionRangeFromScene(this.scene);
+      }
+      
       // リソース解放
       enemyToRemove.dispose();
+      
       // 配列から削除
       this.enemies.splice(index, 1);
 
       // プレイヤーに経験値を与える（分裂した場合は経験値を与えないように調整可能）
       if (grantExperience && this.player) {
-        this.player.addExperience(enemyToRemove.experienceValue);
+        this.player.gainExperience(enemyToRemove.experienceValue);
       }
 
       // 分裂処理
@@ -156,58 +169,78 @@ export class EnemySystem {
       }
     }
   }
-
-  // ジェリー・スライムの分裂処理
+  
+  // JellySlimeが分裂する処理を実装
   private splitJellySlime(position: THREE.Vector3): void {
-    console.log("Jelly Slime splitting!");
-    const offsetAmount = 1.0; // 分裂後のスライムの出現位置オフセット
-
+    // 分裂後のスライム2体を生成（分裂レベル1 = 小さいサイズ）
     for (let i = 0; i < 2; i++) {
-      const splitSlime = new JellySlime(1); // 分裂後のスライム (splitLevel = 1)
+      const smallSlime = new JellySlime(1); // 分裂レベル1を指定
+      
+      // 元の位置から少しずらして配置
       const offset = new THREE.Vector3(
-        (Math.random() - 0.5) * offsetAmount,
+        (Math.random() - 0.5) * 2, // -1〜1のランダム値
         0,
-        (Math.random() - 0.5) * offsetAmount
+        (Math.random() - 0.5) * 2
       );
-      splitSlime.mesh.position.copy(position).add(offset);
-
-      this.enemies.push(splitSlime);
-      this.scene.add(splitSlime.mesh);
-
-      // 分裂後のスライムにも検知範囲表示設定を適用
+      offset.normalize().multiplyScalar(1); // 1ユニット離す
+      
+      smallSlime.mesh.position.copy(position).add(offset);
+      
+      // 新しいスライムを敵リストに追加
+      this.enemies.push(smallSlime);
+      this.scene.add(smallSlime.mesh);
+      
+      // 検知範囲の初期設定
       if (this.showDetectionRanges) {
-        splitSlime.addDetectionRangeToScene(this.scene);
+        smallSlime.addDetectionRangeToScene(this.scene);
       }
     }
+    
+    console.log("JellySlime split into two smaller slimes!");
+  }
+  
+  // 視線判定のためのメソッド実装
+  private hasLineOfSight(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    const direction = new THREE.Vector3().subVectors(to, from).normalize();
+    this.raycaster.set(from, direction);
+    
+    // レイキャストの距離を計算
+    const distance = from.distanceTo(to);
+    
+    // 壁や障害物のリストを取得（実際のゲームでは壁などのオブジェクトを検出）
+    // ここでは簡易的な実装として、常にtrueを返す（=障害物なし）
+    // 将来的に壁の衝突判定を実装する場合は、以下のようにする
+    /*
+    const walls = this.scene.children.filter(child => child.userData.isWall);
+    const intersects = this.raycaster.intersectObjects(walls, true);
+    
+    // 壁との交差を検出し、プレイヤーより手前にあれば視線が通らない
+    return intersects.length === 0 || intersects[0].distance > distance;
+    */
+    
+    return true; // 現在は障害物判定なし
   }
 
-  private clearEnemies(): void {
-    // 既存の敵を削除
+  // すべての敵を削除
+  public clearEnemies(): void {
     this.enemies.forEach(enemy => {
       this.scene.remove(enemy.mesh);
+      
+      // 視認範囲の表示も削除
+      if (this.showDetectionRanges) {
+        enemy.removeDetectionRangeFromScene(this.scene);
+      }
+      
       enemy.dispose();
     });
+    
     this.enemies = [];
   }
-
-  // 視線の確認（壁による遮蔽のチェック）
-  private hasLineOfSight(start: THREE.Vector3, end: THREE.Vector3): boolean {
-    if (!this.levelSystem) return true;
-
-    const direction = new THREE.Vector3().subVectors(end, start);
-    const distance = direction.length();
-    direction.normalize();
-
-    const raycaster = new THREE.Raycaster(start, direction, 0, distance);
-    const walls = this.levelSystem.getWalls();
-    const intersects = raycaster.intersectObjects(walls);
-
-    return intersects.length === 0;
-  }
-
-  // 検知範囲の表示切り替え
+  
+  // 検知範囲の表示/非表示を切り替え
   public toggleDetectionRanges(): void {
     this.showDetectionRanges = !this.showDetectionRanges;
+    
     this.enemies.forEach(enemy => {
       if (this.showDetectionRanges) {
         enemy.addDetectionRangeToScene(this.scene);
@@ -216,12 +249,17 @@ export class EnemySystem {
       }
     });
   }
-
-  public getEnemies(): Enemy[] {
-    return this.enemies;
-  }
-
+  
+  // リソースの解放処理を実装
   public dispose(): void {
+    // すべての敵を削除し、リソースを解放
     this.clearEnemies();
+    
+    // 各種参照をクリア
+    this.player = null;
+    this.levelSystem = null;
+    
+    // レイキャスター関連のクリーンアップ (必要に応じて)
+    this.raycaster = new THREE.Raycaster();
   }
 }
