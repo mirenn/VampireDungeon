@@ -7,7 +7,7 @@ export class JellySlime extends Enemy {
   private jumpHeight: number = 0.5;
   private jumpSpeed: number = 4;
   private slimeMesh: THREE.Mesh; // ★★★ 追加: スライム本体のメッシュを保持 ★★★
-
+  private baseSize: number; // スライムの基本サイズを保持
   constructor(splitLevel: number = 0) {
     super();
     this.splitLevel = splitLevel;
@@ -22,8 +22,8 @@ export class JellySlime extends Enemy {
     // メッシュをジェリー・スライム用に変更
     this.mesh.clear(); // 既存のメッシュをクリア
 
-    const size = this.splitLevel === 0 ? 0.6 : 0.4;
-    const geometry = new THREE.SphereGeometry(size, 16, 16);
+    this.baseSize = this.splitLevel === 0 ? 0.6 : 0.4;
+    const geometry = new THREE.SphereGeometry(this.baseSize, 16, 16);
     const material = new THREE.MeshStandardMaterial({
       color: 0x44aa88,
       transparent: true,
@@ -33,7 +33,7 @@ export class JellySlime extends Enemy {
     this.slimeMesh = new THREE.Mesh(geometry, material);
     this.slimeMesh.castShadow = true;
     // ★★★ 変更: slimeMesh の初期Y位置を設定 ★★★
-    this.slimeMesh.position.y = size;
+    this.slimeMesh.position.y = this.baseSize;
 
     // ★★★ 変更: this.slimeMesh を this.mesh に追加 ★★★
     this.mesh.add(this.slimeMesh);
@@ -43,10 +43,7 @@ export class JellySlime extends Enemy {
 
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
   }
-
   public update(deltaTime: number): void {
-    super.update(deltaTime); // 親クラスのupdate (HPバー位置更新など)
-
     // 跳ねるアニメーション
     this.jumpTime += deltaTime * this.jumpSpeed;
     const jumpOffset = Math.abs(Math.sin(this.jumpTime)) * this.jumpHeight;
@@ -55,6 +52,9 @@ export class JellySlime extends Enemy {
 
     // バウンディングボックスはグループ全体で更新
     this.mesh.userData.boundingBox.setFromObject(this.mesh);
+
+    // HPバーの更新は最後に行う（スライムの位置変更の後）
+    super.update(deltaTime);
   }
 
   // プレイヤーに向かって移動（跳ねる動きを追加）
@@ -97,13 +97,43 @@ export class JellySlime extends Enemy {
   // ★★★ 修正: disposeメソッドでslimeMeshのリソースも解放 ★★★
   public dispose(): void {
     if (this.slimeMesh) {
-        this.slimeMesh.geometry.dispose();
-        if (Array.isArray(this.slimeMesh.material)) {
-            this.slimeMesh.material.forEach(m => m.dispose());
-        } else {
-            this.slimeMesh.material.dispose();
-        }
+      this.slimeMesh.geometry.dispose();
+      if (Array.isArray(this.slimeMesh.material)) {
+        this.slimeMesh.material.forEach(m => m.dispose());
+      } else {
+        this.slimeMesh.material.dispose();
+      }
     }
     super.dispose();
+  }
+
+  // HPバーの位置を安定させるために、Enemyクラスのメソッドをオーバーライド
+  protected updateHPBarPosition(): void {
+    // 親クラスのhpBarContainerプロパティを参照するために型アサーションを使用
+    const hpBarContainer = (this as any).hpBarContainer;
+    if (hpBarContainer) {      // 跳ねるアニメーションに影響されない固定の高さに配置
+      // baseSize（スライムの基本サイズ）に基づいて位置を決定
+      const fixedHeight = this.baseSize * 2 + 1.5; // スライムの直径 + かなり大きな余白で高く配置
+      hpBarContainer.position.y = fixedHeight;
+
+      // HPバーを常に水平に保つ新しい実装
+      // 完全に敵の回転から独立させる
+      const worldPosition = new THREE.Vector3();
+      this.mesh.getWorldPosition(worldPosition);
+      hpBarContainer.position.y = fixedHeight;
+
+      // 完全にリセットして敵の回転を無効化
+      hpBarContainer.rotation.set(0, 0, 0); // 回転をリセット
+      
+      // 常にXZ平面に水平になるよう強制
+      hpBarContainer.lookAt(
+        worldPosition.x, 
+        worldPosition.y + 10, // 真上を向かせる
+        worldPosition.z
+      );
+      
+      // 水平に表示されるよう90度回転
+      hpBarContainer.rotateX(Math.PI / 2);
+    }
   }
 }

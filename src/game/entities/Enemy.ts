@@ -18,7 +18,7 @@ export class Enemy {
   private isDetectionVisible: boolean = false; // 視認範囲が表示されているか
 
   // HPバー関連
-  private hpBarContainer: THREE.Group | null = null; // HPバー全体を含むグループ
+  protected hpBarContainer: THREE.Group | null = null; // HPバー全体を含むグループ
   private hpBarBackground: THREE.Mesh | null = null; // HPバーの背景
   private hpBarFill: THREE.Mesh | null = null; // HPバーのフィル部分
 
@@ -114,7 +114,7 @@ export class Enemy {
     this.updateHPBar();
   }
     // HPバーの位置を更新
-  private updateHPBarPosition(): void {
+  protected updateHPBarPosition(): void {
     if (this.hpBarContainer) {
       // 敵の上部に配置（メッシュの高さに応じて調整）
       const meshHeight = this.calculateMeshHeight();
@@ -127,7 +127,7 @@ export class Enemy {
   }
   
   // メッシュの高さを計算
-  private calculateMeshHeight(): number {
+  protected calculateMeshHeight(): number {
     // バウンディングボックスから高さを計算
     const boundingBox = new THREE.Box3().setFromObject(this.mesh);
     return boundingBox.max.y - boundingBox.min.y;
