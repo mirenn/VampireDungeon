@@ -19,6 +19,7 @@ export class PlayerSystem {
   private showPath: boolean = true; // パスを可視化するかどうかのフラグ
   private consecutiveCollisions: number | undefined = undefined; // 連続衝突回数
   private mousePosition: THREE.Vector2 = new THREE.Vector2(); // マウス位置を保存
+  private enemySystem: any = null; // EnemySystemへの参照を追加
 
   constructor(private scene: THREE.Scene, private camera: THREE.Camera) {
     // キー入力のイベントリスナーを設定
@@ -64,6 +65,12 @@ export class PlayerSystem {
   // パスファインディングシステムへの参照を設定
   public setPathFindingSystem(pathFindingSystem: PathFindingSystem): void {
     this.pathFindingSystem = pathFindingSystem;
+  }
+
+  // EnemySystemへの参照を設定するメソッドを追加
+  public setEnemySystem(enemySystem: any): void {
+    this.enemySystem = enemySystem;
+    console.log('EnemySystem has been set in PlayerSystem');
   }
 
   public update(deltaTime: number): void {
@@ -300,10 +307,43 @@ export class PlayerSystem {
         
         // 敵の情報を取得する関数を用意
         const getEnemiesFunction = () => {
-          // GameManagerのenemySystemから敵を取得するため、window経由でアクセス
-          if ((window as any).gameManager && (window as any).gameManager.enemySystem) {
-            return (window as any).gameManager.enemySystem.getEnemies();
+          console.log('getEnemiesFunction called');
+          
+          // 1. まず直接参照しているenemySystemを確認
+          if (this.enemySystem) {
+            console.log('Using directly referenced enemySystem');
+            try {
+              const enemies = this.enemySystem.getEnemies();
+              console.log('enemies array from direct enemySystem:', enemies);
+              if (enemies && enemies.length > 0) {
+                return enemies;
+              }
+            } catch (e) {
+              console.error('Error using direct enemySystem:', e);
+            }
           }
+          
+          // 2. window.gameManagerを確認
+          if ((window as any).gameManager) {
+            // デバッグ: gameManagerが存在するか確認
+            console.log('window.gameManager exists:', !!(window as any).gameManager);
+            
+            // デバッグ: enemySystemが存在するか確認
+            console.log('gameManager.enemySystem exists:', !!(window as any).gameManager.enemySystem);
+            
+            if ((window as any).gameManager.enemySystem) {
+              const enemies = (window as any).gameManager.enemySystem.getEnemies();
+              console.log('enemies array from enemySystem:', enemies);
+              return enemies;
+            } else {
+              console.warn('gameManager.enemySystem is undefined');
+            }
+          } else {
+            console.warn('gameManager is undefined');
+          }
+          
+          // フォールバック処理を省略し、単純に空配列を返す
+          console.warn('No enemies found - フォールバック処理は無効化されています');
           return [];
         };
         

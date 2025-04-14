@@ -128,13 +128,17 @@ export class GameManager {
       // レベルシステムの参照を設定
       this.playerSystem.setLevelSystem(this.levelSystem);
       this.enemySystem.setLevelSystem(this.levelSystem);
-
-      // パスファインディングシステムの参照を設定
+    // パスファインディングシステムの参照を設定
       this.playerSystem.setPathFindingSystem(this.pathFindingSystem);
+      
+      // EnemySystemの参照をPlayerSystemに設定
+      this.playerSystem.setEnemySystem(this.enemySystem);
 
       // グローバルにプレイヤー情報を公開（UIコンポーネント用）
       (window as any).gamePlayer = player;
       (window as any).gameLevel = this.levelSystem.getCurrentLevel();
+      // グローバルにGameManagerを公開（システム間の参照用）
+      (window as any).gameManager = this;
     }
   }
 

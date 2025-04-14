@@ -140,18 +140,11 @@ export class Enemy {
   // HPバーの表示を更新
   public updateHPBar(): void {
     if (this.hpBarFill) {
-      // 現在のHP比率
-      const hpRatio = this.health / this.maxHealth;
-      console.log(`HP Ratio: ${hpRatio}`, this.health, this.maxHealth);
-      
-      // スケーリングではなくジオメトリのサイズを直接変更する方法に修正
-      if (!this.hpBarFill.userData.originalWidth) {
-        // オリジナルの幅を保存（初回のみ）
-        this.hpBarFill.userData.originalWidth = 1.2;
-      }
+      // HP比率を計算
+      const hpRatio = Math.max(0, this.health / this.maxHealth);
       
       // サイズを直接設定するためにジオメトリを新しく作り直す
-      const newWidth = this.hpBarFill.userData.originalWidth * hpRatio;
+      const newWidth = 1.2 * hpRatio; // オリジナル幅（1.2）にHP比率を掛ける
       const newGeometry = new THREE.PlaneGeometry(newWidth, 0.15);
       
       // ジオメトリを左揃えにするために位置調整

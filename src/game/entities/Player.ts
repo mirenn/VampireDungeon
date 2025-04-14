@@ -323,7 +323,7 @@ export class Player {
     
     // 衝突判定用のバウンディングボックスを設定（十分に大きめに設定）
     attackEffect.userData.boundingBox = new THREE.Box3().setFromObject(attackEffect);
-    attackEffect.userData.boundingBox.expandByScalar(0.5); // より大きなバウンディングボックス
+    attackEffect.userData.boundingBox.expandByScalar(1.0); // 衝突判定を大きくする（0.5→1.0）
     attackEffect.name = 'playerAttackEffect';
     
     // プレイヤーの位置を基準にする
@@ -364,69 +364,81 @@ export class Player {
         distance += moveDistance;
         attackEffect.position.copy(startPosition).addScaledVector(direction, distance);
         
-        // 衝突判定用のバウンディングボックスを更新（大きめに）
+        // 衝突判定用のバウンディングボックスを更新（より大きく）
         attackEffect.userData.boundingBox = new THREE.Box3().setFromObject(attackEffect);
-        attackEffect.userData.boundingBox.expandByScalar(0.5);
+        attackEffect.userData.boundingBox.expandByScalar(1.0); // 拡大係数を大きくする
         
         // 敵との衝突判定を行う
         if (getEnemies) {
-          const enemies = getEnemies();
-          for (const enemy of enemies) {
-            // 既にダメージを与えた敵はスキップ
-            if (damagedEnemies.has(enemy)) continue;
+          try {
+            const enemies = getEnemies();
+            console.log(`Checking collision with ${enemies.length} enemies`, enemies); // 詳細なデバッグ情報
             
-            let collision = false;
-            
-            // JellySlimeなど特殊な敵の場合は専用のチェックメソッドを使用
-            if (typeof enemy.checkCollision === 'function') {
-              collision = enemy.checkCollision(attackEffect.userData.boundingBox);
-            } else {
-              // 通常の敵の場合
-              let enemyBoundingBox = enemy.mesh.userData.boundingBox;
-              if (!enemyBoundingBox) {
-                enemyBoundingBox = new THREE.Box3().setFromObject(enemy.mesh);
-                enemy.mesh.userData.boundingBox = enemyBoundingBox;
-              }
+            for (const enemy of enemies) {
+              // 既にダメージを与えた敵はスキップ
+              if (damagedEnemies.has(enemy)) continue;
               
-              // バウンディングボックスの交差チェック
-              collision = attackEffect.userData.boundingBox.intersectsBox(enemyBoundingBox);
+              let collision = false;
               
-              // 中心点距離による判定も行う
-              if (!collision) {
-                const effectCenter = new THREE.Vector3();
-                attackEffect.userData.boundingBox.getCenter(effectCenter);
-                
-                const enemyCenter = new THREE.Vector3();
-                enemyBoundingBox.getCenter(enemyCenter);
-                
-                const distanceBetweenCenters = effectCenter.distanceTo(enemyCenter);
-                // JellySlimeなど特殊な敵の場合は距離判定を緩める
-                const approximateRadiusSum = enemy.mesh.userData.type === 'jellySlime' ? 1.5 : 1.0;
-                
-                collision = distanceBetweenCenters < approximateRadiusSum;
-              }
-            }
-            
-            // 衝突した場合
-            if (collision) {
-              console.log(`Hit detected on ${enemy.mesh.name || 'unnamed enemy'}`);
-              
-              // エネミーにダメージを与える
-              try {
-                enemy.takeDamage(this.attackPower);
-                console.log(`Applied ${this.attackPower} damage to enemy`);
-                
-                if (typeof enemy.updateHPBar === 'function') {
-                  enemy.updateHPBar();
+              // 明示的にcheckCollisionメソッドを使用
+              if (typeof enemy.checkCollision === 'function') {
+                collision = enemy.checkCollision(attackEffect.userData.boundingBox);
+                console.log(`Using enemy.checkCollision: ${collision}`); // デバッグログ追加
+              } else {
+                // 通常の敵の場合
+                let enemyBoundingBox = enemy.mesh.userData.boundingBox;
+                if (!enemyBoundingBox) {
+                  enemyBoundingBox = new THREE.Box3().setFromObject(enemy.mesh);
+                  enemy.mesh.userData.boundingBox = enemyBoundingBox;
                 }
                 
-                // この敵には既にダメージを与えたとマーク
-                damagedEnemies.add(enemy);
-              } catch (error) {
-                console.error('Error during damage application:', error);
+                // バウンディングボックスの交差チェック
+                collision = attackEffect.userData.boundingBox.intersectsBox(enemyBoundingBox);
+                console.log(`Box intersection check: ${collision}`); // デバッグログ追加
+                
+                // 改善された距離判定
+                if (!collision) {
+                  const effectCenter = new THREE.Vector3();
+                  attackEffect.userData.boundingBox.getCenter(effectCenter);
+                  
+                  const enemyCenter = new THREE.Vector3();
+                  enemyBoundingBox.getCenter(enemyCenter);
+                  
+                  const distanceBetweenCenters = effectCenter.distanceTo(enemyCenter);
+                  // 距離判定を緩める
+                  const approximateRadiusSum = enemy.mesh.userData.type === 'jellySlime' ? 2.0 : 1.5;
+                  
+                  collision = distanceBetweenCenters < approximateRadiusSum;
+                  console.log(`Distance check: ${distanceBetweenCenters} < ${approximateRadiusSum} = ${collision}`); // デバッグログ追加
+                }
+              }
+              
+              // 衝突した場合
+              if (collision) {
+                console.log(`Hit detected on ${enemy.mesh.name || 'unnamed enemy'}`);
+                
+                // エネミーにダメージを与える
+                try {
+                  enemy.takeDamage(this.attackPower);
+                  console.log(`Applied ${this.attackPower} damage to enemy. Enemy health: ${enemy.health}/${enemy.maxHealth}`);
+                  
+                  // HPバーの更新を明示的に呼び出す
+                  if (typeof enemy.updateHPBar === 'function') {
+                    enemy.updateHPBar();
+                  }
+                  
+                  // この敵には既にダメージを与えたとマーク
+                  damagedEnemies.add(enemy);
+                } catch (error) {
+                  console.error('Error during damage application:', error);
+                }
               }
             }
+          } catch (error) {
+            console.error('Error in getEnemies function:', error);
           }
+        } else {
+          console.warn('getEnemies function was not provided to showAttackEffect');
         }
         
         // 最大距離に達したら戻り始める
@@ -447,7 +459,7 @@ export class Player {
           
           // 衝突判定用のバウンディングボックスを更新
           attackEffect.userData.boundingBox = new THREE.Box3().setFromObject(attackEffect);
-          attackEffect.userData.boundingBox.expandByScalar(0.5);
+          attackEffect.userData.boundingBox.expandByScalar(1.0);
           
           // 敵との衝突判定を行う（帰りの場合も）
           if (getEnemies) {
