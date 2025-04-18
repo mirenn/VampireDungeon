@@ -347,8 +347,9 @@ export class Player {
     let isReturning = false; // 帰りかどうかのフラグ
     let lastTimestamp = performance.now();
     
-    // 既にダメージを与えた敵を記録する集合
-    const damagedEnemies = new Set<any>();
+    // 往路と復路でそれぞれダメージを与えるために、2つのセットを用意
+    const damagedEnemiesOutward = new Set<any>(); // 往路でダメージを与えた敵
+    const damagedEnemiesReturn = new Set<any>();  // 復路でダメージを与えた敵
     
     // アニメーション関数
     const animate = (timestamp: number) => {
@@ -375,8 +376,8 @@ export class Player {
             console.log(`Checking collision with ${enemies.length} enemies`, enemies); // 詳細なデバッグ情報
             
             for (const enemy of enemies) {
-              // 既にダメージを与えた敵はスキップ
-              if (damagedEnemies.has(enemy)) continue;
+              // 往路でダメージを与えた敵はスキップ
+              if (damagedEnemiesOutward.has(enemy)) continue;
               
               let collision = false;
               
@@ -427,8 +428,8 @@ export class Player {
                     enemy.updateHPBar();
                   }
                   
-                  // この敵には既にダメージを与えたとマーク
-                  damagedEnemies.add(enemy);
+                  // この敵には往路でダメージを与えたとマーク
+                  damagedEnemiesOutward.add(enemy);
                 } catch (error) {
                   console.error('Error during damage application:', error);
                 }
@@ -465,8 +466,8 @@ export class Player {
           if (getEnemies) {
             const enemies = getEnemies();
             for (const enemy of enemies) {
-              // 既にダメージを与えた敵はスキップ
-              if (damagedEnemies.has(enemy)) continue;
+              // 復路でダメージを与えた敵はスキップ（往路でダメージを与えた敵でも復路では再度ダメージを与える）
+              if (damagedEnemiesReturn.has(enemy)) continue;
               
               let collision = false;
               
@@ -486,7 +487,8 @@ export class Player {
                 if (typeof enemy.updateHPBar === 'function') {
                   enemy.updateHPBar();
                 }
-                damagedEnemies.add(enemy);
+                // 復路でダメージを与えた敵として記録
+                damagedEnemiesReturn.add(enemy);
               }
             }
           }
