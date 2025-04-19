@@ -3,7 +3,7 @@ import '../styles/UI.css';
 
 interface UIProps {}
 
-const UI: React.FC<UIProps> = () => {
+function UI(props: UIProps) {
   // 単純化したステート
   const [health, setHealth] = useState(100);
   const [maxHealth, setMaxHealth] = useState(100);

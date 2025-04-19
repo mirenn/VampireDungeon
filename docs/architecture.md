@@ -289,7 +289,7 @@ private checkPlayerDetection(enemy: Enemy, playerPosition: THREE.Vector3): boole
 }
 ```
 
-### 視覚的なデバッグ支援
+### 視覚的デバッグ支援
 
 敵の視認範囲は視覚的に表示できるようになっており、以下の色で状態を示します：
 
@@ -317,12 +317,11 @@ this.itemSystem.setPlayer(player);
 ゲーム情報を表示するReactコンポーネントです：
 
 ```typescript
-// UI.tsx の主要インターフェース
-const UI: React.FC<UIProps> = () => {
+function UI(props: UIProps) {
   // ステータス表示（体力、経験値など）
   // 武器・アイテム表示
   // ダンジョンレベル表示
-};
+}
 ```
 
 ## ゲームの初期化フロー
