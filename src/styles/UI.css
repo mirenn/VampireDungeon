@@ -1,3 +1,19 @@
+/* filepath: c:\Users\ngihy\Documents\nagai\VampireDungeon\src\styles\UI.css */
+@keyframes skillFlash {
+  0% { 
+    transform: scale(1); 
+    box-shadow: none; /* 開始時は影なし */
+  }
+  50% { 
+    transform: scale(1.05); 
+    box-shadow: 0 0 15px 5px rgba(255, 255, 100, 0.8); /* 黄色っぽい光を追加 */
+  }
+  100% { 
+    transform: scale(1); 
+    box-shadow: none; /* 終了時は影なし */
+  }
+}
+
 .ui-container {
   position: absolute;
   top: 0;
@@ -22,16 +38,16 @@
 }
 
 /* 体力バー */
-.health-bar-container, .exp-bar-container {
+.health-bar-container {
   margin-bottom: 10px;
 }
 
-.health-bar-label, .exp-bar-label {
+.health-bar-label {
   font-size: 14px;
   margin-bottom: 3px;
 }
 
-.health-bar-bg, .exp-bar-bg {
+.health-bar-bg {
   width: 100%;
   height: 15px;
   background-color: #333;
@@ -45,10 +61,76 @@
   transition: width 0.3s ease;
 }
 
-.exp-bar-fill {
+/* スキルクールダウン表示 */
+.skills-container {
+  margin: 15px 0;
+}
+
+.skills-container h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #f1c40f;
+}
+
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.skill-item {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  position: relative;
+}
+
+/* 追加: クールダウン完了時のアニメーション */
+.skill-item.ready {
+  animation: skillFlash 0.5s ease-in-out;
+}
+
+.skill-key {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background-color: #2c3e50;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.skill-name {
+  margin: 0 0 5px 30px;
+  font-size: 14px;
+}
+
+.skill-cooldown-bg {
+  width: 100%;
+  height: 8px;
+  background-color: #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.skill-cooldown-fill {
   height: 100%;
-  background-color: #3498db;
+  background-color: #2ecc71;
   transition: width 0.3s ease;
+}
+
+.skill-cooldown-fill.ready {
+  background-color: #00ff00; /* 解消時の色 */
+  box-shadow: 0 0 10px #00ff00; /* 目立たせるためのエフェクト */
+}
+
+.skill-cooldown-text {
+  text-align: right;
+  font-size: 12px;
+  margin-top: 3px;
+  color: #bdc3c7;
 }
 
 .dungeon-level {
