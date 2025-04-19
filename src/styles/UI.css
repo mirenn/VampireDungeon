@@ -61,6 +61,30 @@
   transition: width 0.3s ease;
 }
 
+/* マナバー */
+.mana-bar-container {
+  margin-bottom: 10px;
+}
+
+.mana-bar-label {
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+
+.mana-bar-bg {
+  width: 100%;
+  height: 15px;
+  background-color: #222e4c;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.mana-bar-fill {
+  height: 100%;
+  background-color: #3498db;
+  transition: width 0.3s ease;
+}
+
 /* スキルクールダウン表示 */
 .skills-container {
   margin: 15px 0;
