@@ -65,6 +65,39 @@ export class SkillManager {
   }
 
   /**
+   * スキルの実行を試みる（マナチェック付き）
+   * @param player プレイヤーオブジェクト
+   * @param skillId スキルID
+   * @param direction 方向ベクトル
+   * @param getEnemies 敵取得関数
+   * @returns 実行に成功したかどうか
+   */
+  public executeSkill(
+    player: Player,
+    skillId: string,
+    direction?: THREE.Vector3,
+    getEnemies?: () => any[],
+  ): boolean {
+    // スキルが存在するか確認
+    const skill = this.getSkill(skillId);
+    if (!skill) {
+      console.error(`スキル ${skillId} が見つかりません`);
+      return false;
+    }
+
+    // マナコストを確認
+    if (player.mana < skill.manaCost) {
+      console.log(
+        `マナが不足しています。必要: ${skill.manaCost}, 現在: ${player.mana}`,
+      );
+      return false;
+    }
+
+    // スキル実行（プレイヤー内部でマナ消費の処理が行われる）
+    return player.executeSkill(skillId, direction, getEnemies);
+  }
+
+  /**
    * 利用可能な全てのスキルIDを取得
    * @returns スキルIDの配列
    */
@@ -283,9 +316,9 @@ export class SkillManager {
     // IDによって異なる説明を生成
     switch (skillId) {
       case 'magicOrb':
-        return `魔法のオーブをカーソル方向に射出する。往路と復路で2回ダメージを与える。`;
+        return `魔法のオーブをカーソル方向に射出する。往路と復路で2回ダメージを与える。コスト:${skill.manaCost}マナ`;
       default:
-        return `${skill.name}スキル`;
+        return `${skill.name}スキル コスト:${skill.manaCost}マナ`;
     }
   }
 

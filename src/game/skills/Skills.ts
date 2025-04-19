@@ -6,6 +6,7 @@ export interface Skill {
   id: string; // スキルID
   name: string; // スキルの表示名
   cooldown: number; // クールダウン時間（秒）
+  manaCost: number; // マナコスト
   execute: (
     player: Player,
     direction?: THREE.Vector3,
@@ -54,7 +55,7 @@ export class Skills {
     const startPosition = player.mesh.position.clone();
     startPosition.y += 1.3; // プレイヤーの上半身から発射
 
-    // 攻撃方向の設定（カスタム方向があればそれを使用、なければプレイヤーの向き）
+    // 攻撃方向の設定（カスタム方向があればそれを使用、なければプレイヤーの向き）const direction = customDirection
     const direction = customDirection
       ? customDirection.clone().normalize()
       : player.direction.clone().normalize();
@@ -299,7 +300,8 @@ export const SkillDatabase: { [key: string]: Skill } = {
   magicOrb: {
     id: 'magicOrb',
     name: '魔法のオーブ',
-    cooldown: 6, // 1秒から7秒に変更
+    cooldown: 6,
+    manaCost: 15, // マナコストを設定
     execute: Skills.magicOrb,
   },
   // 他のスキルをここに追加していく

@@ -7,6 +7,8 @@ function UI(props: UIProps) {
   // 単純化したステート
   const [health, setHealth] = useState(100);
   const [maxHealth, setMaxHealth] = useState(100);
+  const [mana, setMana] = useState(100); // マナ用のステート追加
+  const [maxMana, setMaxMana] = useState(100); // 最大マナ用のステート追加
   const [dunLevel, setDunLevel] = useState(1);
   const weapons = ['basic'];
   
@@ -25,6 +27,8 @@ function UI(props: UIProps) {
         const player = (window as any).gamePlayer;
         setHealth(player.health);
         setMaxHealth(player.maxHealth);
+        setMana(player.mana); // マナを更新
+        setMaxMana(player.maxMana); // 最大マナを更新
         
         if (player.skills && player.skills.cooldowns) {
           setSkillCooldowns(player.skills.cooldowns);
@@ -57,6 +61,17 @@ function UI(props: UIProps) {
             <div 
               className="health-bar-fill" 
               style={{ width: `${(health / maxHealth) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+        
+        {/* マナバー：新規追加 */}
+        <div className="mana-bar-container">
+          <div className="mana-bar-label">MP {mana.toFixed(0)}/{maxMana}</div>
+          <div className="mana-bar-bg">
+            <div 
+              className="mana-bar-fill" 
+              style={{ width: `${(mana / maxMana) * 100}%` }}
             ></div>
           </div>
         </div>

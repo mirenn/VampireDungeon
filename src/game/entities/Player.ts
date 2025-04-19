@@ -5,6 +5,9 @@ export class Player {
   public mesh: THREE.Object3D;
   public health: number = 100;
   public maxHealth: number = 100;
+  public mana: number = 100; // マナの現在値
+  public maxMana: number = 100; // マナの最大値
+  public manaRegenRate: number = 2; // 毎秒回復するマナ量
   public speed: number = 5;
   public attackPower: number = 10;
   public attackSpeed: number = 1;
@@ -176,6 +179,9 @@ export class Player {
       }
     }
 
+    // マナの自動回復
+    this.regenerateMana(deltaTime);
+
     // UI用にクールダウン情報を更新
     this.updateUISkillCooldowns();
 
@@ -213,18 +219,38 @@ export class Player {
     }
   }
 
-  // スキル使用メソッドを更新
-  public useSkill(skillId: string): boolean {
+  // スキルの使用条件チェック＆消費処理（旧: useSkill）
+  public tryConsumeSkill(skillId: string): boolean {
     if (!this.skills.includes(skillId)) {
       return false; // スキルを所持していない
     }
 
     const cooldown = this.skillCooldowns[skillId] || 0;
     if (cooldown <= 0) {
+      // スキルのマナコストを取得
+      const manaCost = this.getSkillManaCost(skillId);
+
+      // マナが足りない場合は使用できない
+      if (!this.useMana(manaCost)) {
+        console.log(
+          `マナが不足しています。必要: ${manaCost}, 現在: ${this.mana}`,
+        );
+        return false;
+      }
+
       // スキルのクールダウンをリセット
       this.skillCooldowns[skillId] = this.getSkillCooldown(skillId);
       // 最大クールダウン時間も更新
       this.skillMaxCooldowns[skillId] = this.getSkillCooldown(skillId);
+      return true;
+    }
+    return false;
+  }
+
+  // マナを消費するメソッド
+  public useMana(amount: number): boolean {
+    if (this.mana >= amount) {
+      this.mana -= amount;
       return true;
     }
     return false;
@@ -236,7 +262,7 @@ export class Player {
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
   ): boolean {
-    if (this.useSkill(skillId)) {
+    if (this.tryConsumeSkill(skillId)) {
       const skill = SkillDatabase[skillId];
       if (skill) {
         skill.execute(this, direction, getEnemies);
@@ -244,6 +270,20 @@ export class Player {
       }
     }
     return false;
+  }
+
+  // マナを回復するメソッド
+  public regenerateMana(deltaTime: number): void {
+    const regenAmount = this.manaRegenRate * deltaTime;
+    this.mana = Math.min(this.maxMana, this.mana + regenAmount);
+  }
+
+  // スキルのマナコストを取得するメソッド
+  public getSkillManaCost(skillId: string): number {
+    if (SkillDatabase[skillId]) {
+      return SkillDatabase[skillId].manaCost || 0;
+    }
+    return 0; // デフォルトのマナコスト
   }
 
   // ダメージを受ける
@@ -388,7 +428,7 @@ export class Player {
     this.mesh.position.z += direction.z * distance;
   }
 
-  // UI用にスキルのクールダウン情報を更新するメソッド
+  // UI用にプレイヤーの情報を更新するメソッド
   private updateUISkillCooldowns(): void {
     // window.gamePlayerがない場合は初期化
     if (!(window as any).gamePlayer) {
@@ -398,6 +438,12 @@ export class Player {
     if (!(window as any).gamePlayer.skills) {
       (window as any).gamePlayer.skills = {};
     }
+
+    // プレイヤーの体力とマナ情報を更新
+    (window as any).gamePlayer.health = this.health;
+    (window as any).gamePlayer.maxHealth = this.maxHealth;
+    (window as any).gamePlayer.mana = this.mana;
+    (window as any).gamePlayer.maxMana = this.maxMana;
 
     // クールダウン情報をUIで使用できる形式に変換
     const cooldowns = {
