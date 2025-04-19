@@ -74,7 +74,7 @@ function UI(props: UIProps) {
                 <div className="skill-name">{skill.name}</div>
                 <div className="skill-cooldown-bg">
                   <div 
-                    className="skill-cooldown-fill"
+                    className={`skill-cooldown-fill ${skill.current <= 0 ? 'ready' : ''}`} 
                     style={{ width: `${getCooldownProgress(skill.current, skill.max)}%` }}
                   ></div>
                 </div>

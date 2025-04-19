@@ -117,13 +117,13 @@
 
 .skill-cooldown-fill {
   height: 100%;
-  background-color: #2ecc71;
+  background-color: #7f8c8d; /* クールダウン中は灰色 */
   transition: width 0.3s ease;
 }
 
 .skill-cooldown-fill.ready {
-  background-color: #00ff00; /* 解消時の色 */
-  box-shadow: 0 0 10px #00ff00; /* 目立たせるためのエフェクト */
+  background-color: #2ecc71; /* 準備完了は緑色 */
+  box-shadow: 0 0 10px #2ecc71; /* 目立たせるエフェクト */
 }
 
 .skill-cooldown-text {
