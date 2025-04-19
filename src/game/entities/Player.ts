@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Skill, SkillDatabase } from '../skills/Skills';
 
 export class Player {
   public mesh: THREE.Object3D;
@@ -11,13 +12,24 @@ export class Player {
   public experience: number = 0;
   public level: number = 1;
 
-  private direction: THREE.Vector3 = new THREE.Vector3(0, 0, -1);
+  public direction: THREE.Vector3 = new THREE.Vector3(0, 0, -1);
   private targetDirection: THREE.Vector3 | null = null;
   private nextWaypoint: THREE.Vector3 | null = null;
   private attackCooldown: number = 0;
-  private skills: string[] = ['basicAttack'];  // 基本攻撃スキル
-  private skillCooldowns: { [key: string]: number } = {};  // スキルごとのクールダウン
+  private skills: string[] = ['magicOrb']; // 初期スキルを「魔法のオーブ」に変更
+  private skillCooldowns: { [key: string]: number } = {}; // スキルごとのクールダウン
   private items: string[] = [];
+  // キーバインドとスキルの対応関係を管理
+  private keyBindings: { [key: string]: string } = {
+    Q: 'magicOrb', // 「魔法のオーブ」をQキーにバインド
+    W: '',
+    E: '',
+    R: '',
+  };
+  // スキルの最大クールダウン時間
+  private skillMaxCooldowns: { [key: string]: number } = {
+    magicOrb: 1, // 攻撃速度に応じて変わる
+  };
 
   constructor() {
     // プレイヤーのメッシュを作成
@@ -53,7 +65,7 @@ export class Player {
     this.mesh.name = 'player';
 
     // スキルのクールダウンを初期化
-    this.skillCooldowns['basicAttack'] = 0;
+    this.skillCooldowns['magicOrb'] = 0;
   }
   // バウンディングボックスを更新するメソッド（武器を除外）
   private updateBoundingBox(): void {
@@ -82,14 +94,18 @@ export class Player {
       this.mesh.userData.boundingBox = box;
     } else {
       // 万が一適切なパーツがない場合のフォールバック
-      this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+      this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(
+        this.mesh,
+      );
     }
   }
   // 滑らかに指定した位置の方向へ向きを変える
   public smoothLookAt(target: THREE.Vector3, rotationSpeed: number): void {
     // 現在位置から目標への方向を計算
     const currentPos = this.mesh.position;
-    const targetDirection = new THREE.Vector3().subVectors(target, currentPos).normalize();
+    const targetDirection = new THREE.Vector3()
+      .subVectors(target, currentPos)
+      .normalize();
     targetDirection.y = 0; // Y軸の回転を無視
 
     // 方向の長さが有効な場合のみ回転処理を行う
@@ -109,7 +125,8 @@ export class Player {
 
       // 徐々に回転する（rotationSpeedで速度調整）
       if (Math.abs(angleDiff) > 0.01) {
-        const rotationAmount = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), rotationSpeed);
+        const rotationAmount =
+          Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), rotationSpeed);
         this.mesh.rotation.y += rotationAmount;
 
         // 方向ベクトルも更新
@@ -124,12 +141,17 @@ export class Player {
   }
 
   // 次のウェイポイントへの準備（曲がり角での加速・減速を滑らかにする）
-  public prepareNextDirection(nextPoint: THREE.Vector3, afterNextPoint: THREE.Vector3 | null): void {
+  public prepareNextDirection(
+    nextPoint: THREE.Vector3,
+    afterNextPoint: THREE.Vector3 | null,
+  ): void {
     this.nextWaypoint = nextPoint.clone();
 
     // 次の移動方向を計算
     if (nextPoint) {
-      const targetDir = new THREE.Vector3().subVectors(nextPoint, this.mesh.position).normalize();
+      const targetDir = new THREE.Vector3()
+        .subVectors(nextPoint, this.mesh.position)
+        .normalize();
       targetDir.y = 0; // Y軸の回転を無視
       this.targetDirection = targetDir;
 
@@ -148,8 +170,14 @@ export class Player {
     for (const skillId in this.skillCooldowns) {
       if (this.skillCooldowns[skillId] > 0) {
         this.skillCooldowns[skillId] -= deltaTime;
+        if (this.skillCooldowns[skillId] < 0) {
+          this.skillCooldowns[skillId] = 0;
+        }
       }
     }
+
+    // UI用にクールダウン情報を更新
+    this.updateUISkillCooldowns();
 
     // 目標方向がある場合は、徐々にその方向へ回転
     if (this.targetDirection && this.targetDirection.length() > 0.01) {
@@ -185,17 +213,35 @@ export class Player {
     }
   }
 
-  // 攻撃メソッドをスキル使用メソッドに変更
+  // スキル使用メソッドを更新
   public useSkill(skillId: string): boolean {
     if (!this.skills.includes(skillId)) {
-      return false;  // スキルを所持していない
+      return false; // スキルを所持していない
     }
 
     const cooldown = this.skillCooldowns[skillId] || 0;
     if (cooldown <= 0) {
-      // スキルのクールダウンをリセット（スキルごとに異なる値を設定可能）
+      // スキルのクールダウンをリセット
       this.skillCooldowns[skillId] = this.getSkillCooldown(skillId);
+      // 最大クールダウン時間も更新
+      this.skillMaxCooldowns[skillId] = this.getSkillCooldown(skillId);
       return true;
+    }
+    return false;
+  }
+
+  // スキルを実行するメソッド
+  public executeSkill(
+    skillId: string,
+    direction?: THREE.Vector3,
+    getEnemies?: () => any[],
+  ): boolean {
+    if (this.useSkill(skillId)) {
+      const skill = SkillDatabase[skillId];
+      if (skill) {
+        skill.execute(this, direction, getEnemies);
+        return true;
+      }
     }
     return false;
   }
@@ -227,7 +273,7 @@ export class Player {
   public addSkill(skillId: string): void {
     if (!this.skills.includes(skillId)) {
       this.skills.push(skillId);
-      this.skillCooldowns[skillId] = 0;  // クールダウンを初期化
+      this.skillCooldowns[skillId] = 0; // クールダウンを初期化
     }
   }
 
@@ -239,27 +285,61 @@ export class Player {
   // スキルのクールダウン状態を取得
   public getSkillCooldown(skillId: string): number {
     switch (skillId) {
-      case 'basicAttack':
+      case 'magicOrb': // 'basicAttack'から'magicOrb'に変更
         return 1 / this.attackSpeed;
       // 他のスキルのクールダウン時間をここに追加
       default:
-        return 1;  // デフォルトのクールダウン時間
+        // スキルデータベースから取得
+        if (SkillDatabase[skillId]) {
+          return SkillDatabase[skillId].cooldown;
+        }
+        return 1; // デフォルトのクールダウン時間
     }
   }
-
   // すべての所持スキルを取得
   public getSkills(): string[] {
     return [...this.skills];
   }
-  
-    // プレイヤーの位置を取得
-    public getPosition(): THREE.Vector3 {
-      return this.mesh.position.clone();
-    }
-  
+
+  // プレイヤーの位置を取得
+  public getPosition(): THREE.Vector3 {
+    return this.mesh.position.clone();
+  }
+
   // プレイヤーの方向を取得
   public getDirection(): THREE.Vector3 {
     return this.direction.clone();
+  }
+
+  // キーにスキルをバインドするメソッド
+  public bindSkillToKey(key: string, skillId: string): boolean {
+    // 大文字に変換して統一
+    key = key.toUpperCase();
+
+    // 有効なキーかどうか確認
+    if (!['Q', 'W', 'E', 'R'].includes(key)) {
+      return false;
+    }
+
+    // スキルを所持しているか確認
+    if (skillId && !this.skills.includes(skillId)) {
+      return false;
+    }
+
+    // キーバインドを更新
+    this.keyBindings[key] = skillId;
+    return true;
+  }
+
+  // キーに割り当てられたスキルを取得
+  public getSkillForKey(key: string): string {
+    key = key.toUpperCase();
+    return this.keyBindings[key] || '';
+  }
+
+  // 全てのキーバインドを取得
+  public getAllKeyBindings(): { [key: string]: string } {
+    return { ...this.keyBindings };
   }
 
   // リソースの解放
@@ -268,7 +348,7 @@ export class Player {
       if (child instanceof THREE.Mesh) {
         child.geometry.dispose();
         if (Array.isArray(child.material)) {
-          child.material.forEach(material => material.dispose());
+          child.material.forEach((material) => material.dispose());
         } else {
           child.material.dispose();
         }
@@ -307,219 +387,51 @@ export class Player {
     this.mesh.position.x += direction.x * distance;
     this.mesh.position.z += direction.z * distance;
   }
-  // 攻撃エフェクトを表示するメソッド
-  public showAttackEffect(customDirection?: THREE.Vector3, getEnemies?: () => any[]): void {
-    // 攻撃エフェクト（球）を作成
-    const attackEffect = new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, 16, 16),
-      new THREE.MeshStandardMaterial({ 
-        color: 0xff0000, 
-        transparent: true, 
-        opacity: 0.8,
-        emissive: 0xff5500,
-        emissiveIntensity: 0.5
-      })
-    );
-    
-    // 衝突判定用のバウンディングボックスを設定（十分に大きめに設定）
-    attackEffect.userData.boundingBox = new THREE.Box3().setFromObject(attackEffect);
-    attackEffect.userData.boundingBox.expandByScalar(1.0); // 衝突判定を大きくする（0.5→1.0）
-    attackEffect.name = 'playerAttackEffect';
-    
-    // プレイヤーの位置を基準にする
-    const startPosition = this.mesh.position.clone();
-    startPosition.y += 1.3; // プレイヤーの上半身から発射
-    
-    // 攻撃方向の設定（カスタム方向があればそれを使用、なければプレイヤーの向き）
-    const direction = customDirection ? customDirection.clone().normalize() : this.direction.clone().normalize();
-    
-    // エフェクトの初期位置をプレイヤーの少し前に設定
-    const offsetDistance = 1.0;
-    attackEffect.position.copy(startPosition).addScaledVector(direction, offsetDistance);
-    
-    // シーンに追加
-    this.mesh.parent?.add(attackEffect);
-    
-    // アニメーション用変数
-    const maxDistance = 10.0; // 最大飛距離
-    const speed = 15.0; // 球の速度
-    let distance = offsetDistance; // 初期距離
-    let isReturning = false; // 帰りかどうかのフラグ
-    let lastTimestamp = performance.now();
-    
-    // 往路と復路でそれぞれダメージを与えるために、2つのセットを用意
-    const damagedEnemiesOutward = new Set<any>(); // 往路でダメージを与えた敵
-    const damagedEnemiesReturn = new Set<any>();  // 復路でダメージを与えた敵
-    
-    // アニメーション関数
-    const animate = (timestamp: number) => {
-      // 経過時間（秒）を計算
-      const deltaTime = Math.min((timestamp - lastTimestamp) / 1000, 0.1); // 最大100msに制限
-      lastTimestamp = timestamp;
-      
-      // 移動距離を計算
-      const moveDistance = speed * deltaTime;
-      
-      if (!isReturning) {
-        // 前方へ飛ぶ
-        distance += moveDistance;
-        attackEffect.position.copy(startPosition).addScaledVector(direction, distance);
-        
-        // 衝突判定用のバウンディングボックスを更新（より大きく）
-        attackEffect.userData.boundingBox = new THREE.Box3().setFromObject(attackEffect);
-        attackEffect.userData.boundingBox.expandByScalar(1.0); // 拡大係数を大きくする
-        
-        // 敵との衝突判定を行う
-        if (getEnemies) {
-          try {
-            const enemies = getEnemies();
-            console.log(`Checking collision with ${enemies.length} enemies`, enemies); // 詳細なデバッグ情報
-            
-            for (const enemy of enemies) {
-              // 往路でダメージを与えた敵はスキップ
-              if (damagedEnemiesOutward.has(enemy)) continue;
-              
-              let collision = false;
-              
-              // 明示的にcheckCollisionメソッドを使用
-              if (typeof enemy.checkCollision === 'function') {
-                collision = enemy.checkCollision(attackEffect.userData.boundingBox);
-                console.log(`Using enemy.checkCollision: ${collision}`); // デバッグログ追加
-              } else {
-                // 通常の敵の場合
-                let enemyBoundingBox = enemy.mesh.userData.boundingBox;
-                if (!enemyBoundingBox) {
-                  enemyBoundingBox = new THREE.Box3().setFromObject(enemy.mesh);
-                  enemy.mesh.userData.boundingBox = enemyBoundingBox;
-                }
-                
-                // バウンディングボックスの交差チェック
-                collision = attackEffect.userData.boundingBox.intersectsBox(enemyBoundingBox);
-                console.log(`Box intersection check: ${collision}`); // デバッグログ追加
-                
-                // 改善された距離判定
-                if (!collision) {
-                  const effectCenter = new THREE.Vector3();
-                  attackEffect.userData.boundingBox.getCenter(effectCenter);
-                  
-                  const enemyCenter = new THREE.Vector3();
-                  enemyBoundingBox.getCenter(enemyCenter);
-                  
-                  const distanceBetweenCenters = effectCenter.distanceTo(enemyCenter);
-                  // 距離判定を緩める
-                  const approximateRadiusSum = enemy.mesh.userData.type === 'jellySlime' ? 2.0 : 1.5;
-                  
-                  collision = distanceBetweenCenters < approximateRadiusSum;
-                  console.log(`Distance check: ${distanceBetweenCenters} < ${approximateRadiusSum} = ${collision}`); // デバッグログ追加
-                }
-              }
-              
-              // 衝突した場合
-              if (collision) {
-                console.log(`Hit detected on ${enemy.mesh.name || 'unnamed enemy'}`);
-                
-                // エネミーにダメージを与える
-                try {
-                  enemy.takeDamage(this.attackPower);
-                  console.log(`Applied ${this.attackPower} damage to enemy. Enemy health: ${enemy.health}/${enemy.maxHealth}`);
-                  
-                  // HPバーの更新を明示的に呼び出す
-                  if (typeof enemy.updateHPBar === 'function') {
-                    enemy.updateHPBar();
-                  }
-                  
-                  // この敵には往路でダメージを与えたとマーク
-                  damagedEnemiesOutward.add(enemy);
-                } catch (error) {
-                  console.error('Error during damage application:', error);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error in getEnemies function:', error);
-          }
-        } else {
-          console.warn('getEnemies function was not provided to showAttackEffect');
-        }
-        
-        // 最大距離に達したら戻り始める
-        if (distance >= maxDistance) {
-          isReturning = true;
-        }
-      } else {
-        // プレイヤーへ戻る
-        distance -= moveDistance * 1.5; // 帰りは少し速く
-        
-        if (distance > 0) {
-          // プレイヤーの現在位置を取得（移動している場合に追従）
-          const currentPlayerPosition = this.mesh.position.clone();
-          currentPlayerPosition.y += 1.3; // 上半身の高さに調整
-          
-          // 前方方向ベクトルの基点を現在のプレイヤー位置に更新
-          attackEffect.position.copy(currentPlayerPosition).addScaledVector(direction, distance);
-          
-          // 衝突判定用のバウンディングボックスを更新
-          attackEffect.userData.boundingBox = new THREE.Box3().setFromObject(attackEffect);
-          attackEffect.userData.boundingBox.expandByScalar(1.0);
-          
-          // 敵との衝突判定を行う（帰りの場合も）
-          if (getEnemies) {
-            const enemies = getEnemies();
-            for (const enemy of enemies) {
-              // 復路でダメージを与えた敵はスキップ（往路でダメージを与えた敵でも復路では再度ダメージを与える）
-              if (damagedEnemiesReturn.has(enemy)) continue;
-              
-              let collision = false;
-              
-              if (typeof enemy.checkCollision === 'function') {
-                collision = enemy.checkCollision(attackEffect.userData.boundingBox);
-              } else {
-                // 通常の敵向け衝突判定
-                const enemyBoundingBox = enemy.mesh.userData.boundingBox;
-                if (enemyBoundingBox && attackEffect.userData.boundingBox.intersectsBox(enemyBoundingBox)) {
-                  collision = true;
-                }
-              }
-              
-              if (collision) {
-                console.log(`${enemy.mesh.name || 'Enemy'} takes ${this.attackPower} damage (return)`);
-                enemy.takeDamage(this.attackPower);
-                if (typeof enemy.updateHPBar === 'function') {
-                  enemy.updateHPBar();
-                }
-                // 復路でダメージを与えた敵として記録
-                damagedEnemiesReturn.add(enemy);
-              }
-            }
-          }
-        } else {
-          // プレイヤーに到達したらエフェクト終了
-          if (attackEffect.parent) {
-            attackEffect.material.dispose();
-            attackEffect.geometry.dispose();
-            attackEffect.parent.remove(attackEffect);
-          }
-          return; // アニメーション終了
-        }
-      }
-      
-      // 球を回転させる（見た目の効果）
-      attackEffect.rotation.x += deltaTime * 10;
-      attackEffect.rotation.y += deltaTime * 8;
-      
-      // 途中で不透明度を変更
-      const material = attackEffect.material as THREE.MeshStandardMaterial;
-      if (isReturning) {
-        // 戻るときは徐々に明るく
-        material.opacity = Math.min(0.8, 0.4 + (0.4 * (maxDistance - distance) / maxDistance));
-        material.emissiveIntensity = 0.5 + (0.5 * (maxDistance - distance) / maxDistance);
-      }
-      
-      // 次のフレームへ
-      requestAnimationFrame(animate);
+
+  // UI用にスキルのクールダウン情報を更新するメソッド
+  private updateUISkillCooldowns(): void {
+    // window.gamePlayerがない場合は初期化
+    if (!(window as any).gamePlayer) {
+      (window as any).gamePlayer = {};
+    }
+
+    if (!(window as any).gamePlayer.skills) {
+      (window as any).gamePlayer.skills = {};
+    }
+
+    // クールダウン情報をUIで使用できる形式に変換
+    const cooldowns = {
+      Q: {
+        max: this.skillMaxCooldowns[this.keyBindings.Q] || 0,
+        current: this.skillCooldowns[this.keyBindings.Q] || 0,
+        name: this.keyBindings.Q
+          ? SkillDatabase[this.keyBindings.Q]?.name || '不明なスキル'
+          : '未設定',
+      },
+      W: {
+        max: this.skillMaxCooldowns[this.keyBindings.W] || 0,
+        current: this.skillCooldowns[this.keyBindings.W] || 0,
+        name: this.keyBindings.W
+          ? SkillDatabase[this.keyBindings.W]?.name || '不明なスキル'
+          : '未設定',
+      },
+      E: {
+        max: this.skillMaxCooldowns[this.keyBindings.E] || 0,
+        current: this.skillCooldowns[this.keyBindings.E] || 0,
+        name: this.keyBindings.E
+          ? SkillDatabase[this.keyBindings.E]?.name || '不明なスキル'
+          : '未設定',
+      },
+      R: {
+        max: this.skillMaxCooldowns[this.keyBindings.R] || 0,
+        current: this.skillCooldowns[this.keyBindings.R] || 0,
+        name: this.keyBindings.R
+          ? SkillDatabase[this.keyBindings.R]?.name || '不明なスキル'
+          : '未設定',
+      },
     };
-    
-    // アニメーション開始
-    requestAnimationFrame(animate);
+
+    // グローバル変数に設定（UIからアクセスできるようにする）
+    (window as any).gamePlayer.skills.cooldowns = cooldowns;
   }
 }

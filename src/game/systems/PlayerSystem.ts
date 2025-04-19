@@ -297,13 +297,19 @@ export class PlayerSystem {
       for (const marker of this.pathMarkers) {
         marker.visible = this.showPath;
       }
-    }    // Qキーによる攻撃処理を追加
-    if (event.key === 'q' || event.key === 'Q') {
-      if (this.player && this.player.useSkill('basicAttack')) {
-        console.log('攻撃が発動しました');
+    }
+    
+    // QWER キーでスキル使用
+    const skillKeys = ['q', 'w', 'e', 'r'];
+    if (skillKeys.includes(event.key.toLowerCase()) && this.player) {
+      const key = event.key.toUpperCase();
+      const skillId = this.player.getSkillForKey(key);
+      
+      if (skillId) {
+        console.log(`${key}キーによるスキル ${skillId} の発動を試みます`);
         
         // マウス位置からの方向を計算
-        const attackDirection = this.getDirectionToMousePosition();
+        const direction = this.getDirectionToMousePosition();
         
         // 敵の情報を取得する関数を用意
         const getEnemiesFunction = () => {
@@ -347,20 +353,15 @@ export class PlayerSystem {
           return [];
         };
         
-        if (attackDirection) {
-          // 方向を指定して攻撃エフェクトを表示し、敵の情報を渡す
-          this.player.showAttackEffect(attackDirection, getEnemiesFunction);
-        } else {
-          // マウス方向が取得できなかった場合は通常の攻撃方向を使用
-          this.player.showAttackEffect(undefined, getEnemiesFunction);
-        }
+        // スキル実行
+        this.player.executeSkill(skillId, direction, getEnemiesFunction);
       }
     }
   }
 
   // マウス位置への方向ベクトルを計算
-  private getDirectionToMousePosition(): THREE.Vector3 | null {
-    if (!this.player) return null;
+  private getDirectionToMousePosition(): THREE.Vector3 | undefined {
+    if (!this.player) return undefined;
     
     // レイキャスターを設定（カメラとマウス位置から光線を飛ばす）
     this.raycaster.setFromCamera(this.mousePosition, this.camera);
@@ -379,7 +380,7 @@ export class PlayerSystem {
       return direction;
     }
     
-    return null;
+    return undefined;
   }
 
   // キーが離された時の処理
