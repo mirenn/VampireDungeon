@@ -1,4 +1,19 @@
 /* filepath: c:\Users\ngihy\Documents\nagai\VampireDungeon\src\styles\UI.css */
+@keyframes skillFlash {
+  0% { 
+    transform: scale(1); 
+    box-shadow: none; /* 開始時は影なし */
+  }
+  50% { 
+    transform: scale(1.05); 
+    box-shadow: 0 0 15px 5px rgba(255, 255, 100, 0.8); /* 黄色っぽい光を追加 */
+  }
+  100% { 
+    transform: scale(1); 
+    box-shadow: none; /* 終了時は影なし */
+  }
+}
+
 .ui-container {
   position: absolute;
   top: 0;
@@ -71,6 +86,11 @@
   position: relative;
 }
 
+/* 追加: クールダウン完了時のアニメーション */
+.skill-item.ready {
+  animation: skillFlash 0.5s ease-in-out;
+}
+
 .skill-key {
   position: absolute;
   top: 8px;
@@ -99,6 +119,11 @@
   height: 100%;
   background-color: #2ecc71;
   transition: width 0.3s ease;
+}
+
+.skill-cooldown-fill.ready {
+  background-color: #00ff00; /* 解消時の色 */
+  box-shadow: 0 0 10px #00ff00; /* 目立たせるためのエフェクト */
 }
 
 .skill-cooldown-text {

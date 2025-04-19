@@ -66,12 +66,15 @@ const UI: React.FC<UIProps> = () => {
           <h3>スキル</h3>
           <div className="skills-grid">
             {Object.entries(skillCooldowns).map(([key, skill]) => (
-              <div key={key} className="skill-item">
+              <div 
+                key={key} 
+                className={`skill-item ${skill.current <= 0 ? 'ready' : ''}`}
+              >
                 <div className="skill-key">{key}</div>
                 <div className="skill-name">{skill.name}</div>
                 <div className="skill-cooldown-bg">
                   <div 
-                    className="skill-cooldown-fill" 
+                    className="skill-cooldown-fill"
                     style={{ width: `${getCooldownProgress(skill.current, skill.max)}%` }}
                   ></div>
                 </div>

@@ -299,7 +299,7 @@ export const SkillDatabase: { [key: string]: Skill } = {
   magicOrb: {
     id: 'magicOrb',
     name: '魔法のオーブ',
-    cooldown: 6, // 1秒から7秒に変更
+    cooldown: 1, // 1秒から7秒に変更
     execute: Skills.magicOrb,
   },
   // 他のスキルをここに追加していく
