@@ -11,7 +11,7 @@ import { JellySlime } from './entities/JellySlime'; // JellySlimeをインポー
 
 export class GameManager {
   private scene: THREE.Scene;
-  private camera: THREE.OrthographicCamera; // パースペクティブからオルソグラフィックに変更
+  private camera: THREE.PerspectiveCamera; // わずかにパースペクティブに変更
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls | null = null; // OrbitControlsをnullで初期化
   private clock: THREE.Clock;
@@ -36,20 +36,18 @@ export class GameManager {
     // シーンの作成
     this.scene = new THREE.Scene();
 
-    // カメラの作成（正射影カメラに変更）
+    // カメラの作成（わずかにパースペクティブ）
     const aspect = window.innerWidth / window.innerHeight;
-    const frustumSize = 30; // より広い視野に調整
-    this.camera = new THREE.OrthographicCamera(
-      frustumSize * aspect / -2,
-      frustumSize * aspect / 2,
-      frustumSize / 2,
-      frustumSize / -2,
-      0.1,
-      1000
+    const fov = 10;
+    this.camera = new THREE.PerspectiveCamera(
+      fov, // 視野角
+      aspect, // アスペクト比
+      0.1, // ニアクリップ
+      1000, // ファークリップ
     );
 
-    // カメラの初期位置を設定
-    this.camera.position.set(0, 20, 20);
+    // カメラの初期位置を少し遠ざける
+    this.camera.position.set(0, 30, 30);
     this.camera.lookAt(0, 0, 0);
 
     // レンダラーの作成
@@ -100,7 +98,7 @@ export class GameManager {
     const groundMaterial = new THREE.MeshStandardMaterial({
       color: 0x1a472a,
       roughness: 0.8,
-      metalness: 0.2
+      metalness: 0.2,
     });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2; // 水平にする
@@ -128,9 +126,9 @@ export class GameManager {
       // レベルシステムの参照を設定
       this.playerSystem.setLevelSystem(this.levelSystem);
       this.enemySystem.setLevelSystem(this.levelSystem);
-    // パスファインディングシステムの参照を設定
+      // パスファインディングシステムの参照を設定
       this.playerSystem.setPathFindingSystem(this.pathFindingSystem);
-      
+
       // EnemySystemの参照をPlayerSystemに設定
       this.playerSystem.setEnemySystem(this.enemySystem);
 
@@ -180,13 +178,7 @@ export class GameManager {
   // リサイズ対応
   private onWindowResize(): void {
     const aspect = window.innerWidth / window.innerHeight;
-    const frustumSize = 20;
-
-    this.camera.left = frustumSize * aspect / -2;
-    this.camera.right = frustumSize * aspect / 2;
-    this.camera.top = frustumSize / 2;
-    this.camera.bottom = frustumSize / -2;
-
+    this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
@@ -249,18 +241,24 @@ export class GameManager {
     const enemies = this.enemySystem.getEnemies();
     const enemiesToRemove: Enemy[] = []; // 削除対象の敵リスト
 
-    enemies.forEach(enemy => {
+    enemies.forEach((enemy) => {
       const enemyPosition = enemy.getPosition();
       const enemyBoundingBox = enemy.mesh.userData.boundingBox as THREE.Box3;
 
       // 1. 敵からプレイヤーへの攻撃（体当たり）
-      if (playerBoundingBox && enemyBoundingBox && playerBoundingBox.intersectsBox(enemyBoundingBox)) {
+      if (
+        playerBoundingBox &&
+        enemyBoundingBox &&
+        playerBoundingBox.intersectsBox(enemyBoundingBox)
+      ) {
         if (enemy.attack()) {
-          console.log(`Player takes ${enemy.damage} damage from ${enemy.mesh.name}`);
+          console.log(
+            `Player takes ${enemy.damage} damage from ${enemy.mesh.name}`,
+          );
           player.takeDamage(enemy.damage);
           (window as any).dispatchEvent(new CustomEvent('playerDamaged')); // UI更新用イベント
         }
-      }      // 2. プレイヤーから敵への攻撃は玉が当たった時に処理するため、このブロックは削除
+      } // 2. プレイヤーから敵への攻撃は玉が当たった時に処理するため、このブロックは削除
       // 敵の体力が0以下になったかチェック
       if (enemy.health <= 0) {
         if (!enemiesToRemove.includes(enemy)) {
@@ -268,7 +266,6 @@ export class GameManager {
           enemiesToRemove.push(enemy);
         }
       }
-
 
       // 3. 敵の体力が0以下になったかチェック
       if (enemy.health <= 0 && !enemiesToRemove.includes(enemy)) {
@@ -278,14 +275,16 @@ export class GameManager {
     });
 
     // 削除対象の敵を処理
-    enemiesToRemove.forEach(enemy => {
-      const grantExperience = !(enemy instanceof JellySlime && enemy.getSplitLevel() > 0);
+    enemiesToRemove.forEach((enemy) => {
+      const grantExperience = !(
+        enemy instanceof JellySlime && enemy.getSplitLevel() > 0
+      );
       this.enemySystem.removeEnemy(enemy, grantExperience);
     });
 
     // プレイヤーの体力が0以下になった場合のゲームオーバー処理
     if (player.health <= 0) {
-      console.log("Game Over!");
+      console.log('Game Over!');
       this.stop();
       // TODO: ゲームオーバーUI表示などの処理を追加
     }
@@ -295,7 +294,9 @@ export class GameManager {
   // パスファインディングデバッグビジュアライゼーションの表示切り替え
   private togglePathfindingDebug(): void {
     this.showPathfindingDebug = !this.showPathfindingDebug;
-    console.log(`パスファインディングデバッグ表示: ${this.showPathfindingDebug ? 'オン' : 'オフ'}`);
+    console.log(
+      `パスファインディングデバッグ表示: ${this.showPathfindingDebug ? 'オン' : 'オフ'}`,
+    );
 
     if (this.showPathfindingDebug) {
       this.updatePathfindingDebugVisualization();
@@ -322,11 +323,12 @@ export class GameManager {
     const player = this.playerSystem.getPlayer();
     if (player) {
       // パスファインディングシステムからデバッグオブジェクトを生成
-      this.pathfindingDebugObject = this.pathFindingSystem.createDebugVisualization(
-        player.getPosition(),
-        true, // パスを表示
-        playerPath
-      );
+      this.pathfindingDebugObject =
+        this.pathFindingSystem.createDebugVisualization(
+          player.getPosition(),
+          true, // パスを表示
+          playerPath,
+        );
     }
 
     if (!this.pathfindingDebugObject) return;
