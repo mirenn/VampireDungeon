@@ -31,6 +31,11 @@ export class SkillManager {
 
   /**
    * 新しいスキルをプレイヤーに追加
+   *
+   * この関数は「スキルをプレイヤーの所持スキルリストに追加する」だけで、
+   * QWERなどのキーへのバインドは行いません。
+   * （スキルのバインドは bindSkillToKey などで別途行います）
+   *
    * @param player プレイヤーオブジェクト
    * @param skillId スキルID
    * @returns 追加に成功したかどうか

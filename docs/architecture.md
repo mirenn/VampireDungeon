@@ -1,6 +1,6 @@
 # Vampire Dungeon - 開発ドキュメント
 
-このドキュメントは、Vampire Dungeonの開発者向けに、プロジェクトの内部設計や構造を説明するものです。
+このドキュメントは、Vampire Dungeonの開発者向けに、プロジェクトの内部設計や構造を簡潔に説明するものです。
 
 ## アーキテクチャ概要
 
@@ -403,58 +403,119 @@ npm run preview
 
 ビルドされたファイルは`dist`ディレクトリに出力されます。
 
-### スキルシステム
+## スキルシステム
 
 プレイヤーのスキルシステムは以下のように設計されています：
 
-```typescript
-// スキル管理の主要インターフェース例
-interface Skill {
-  id: string;
-  name: string;
-  description: string;
-  level: number;
-  effects?: SkillEffect[];
-  // ... 他のスキル属性 (例: cooldown, cost)
-}
+### スキルの型と属性
 
-// スキル効果の種類
-type SkillEffect = {
-  type: 'damage' | 'stun' | 'slow' | 'heal' | 'buff';
-  value: number; // 効果量
-  duration?: number; // 持続時間
-  // ... 他の効果属性 (例: targetType)
+スキルは`Skills.ts`で定義される`Skill`インターフェースに従います。
+
+```typescript
+// Skills.ts より
+export interface Skill {
+  id: string; // スキルID
+  name: string; // スキルの表示名
+  cooldown: number; // クールダウン時間（秒）
+  manaCost: number; // マナコスト
+  execute: (
+    player: Player,
+    direction?: THREE.Vector3,
+    getEnemies?: () => any[],
+  ) => void; // スキル実行関数
+}
+```
+
+スキルの実装例は`Skills`クラスで定義され、`SkillDatabase`に登録されます。
+
+```typescript
+// Skills.ts より
+export const SkillDatabase: { [key: string]: Skill } = {
+  magicOrb: {
+    id: 'magicOrb',
+    name: '魔法のオーブ',
+    cooldown: 6,
+    manaCost: 15,
+    execute: Skills.magicOrb,
+  },
+  // ...他のスキル
 };
 ```
 
-#### スキルの種類
+### スキル管理・バインド・実行
 
-1. **基本攻撃** (デフォルトスキル)
+スキルの管理は`SkillManager.ts`の`SkillManager`クラスが担当します。  
+主な機能は以下の通りです。
 
-   - 単純な近接攻撃
-   - クールダウンは攻撃速度に依存
+- スキルの登録・取得・説明生成
+- プレイヤーへのスキル追加・習得
+- QWERキーへのスキルバインド・解除
+- スキルの実行（マナ消費・クールダウン管理はプレイヤー側で実装）
+- 未習得スキルの抽出・ランダム取得
 
-2. **取得可能なスキル**
-   - QWERキーに割り当て可能
-   - 固有のクールダウン時間
-   - 様々な効果（ダメージ、スタン、スロー等）
-   - 最大4つまで同時装備可能
-   - 同じスキルを選ぶとスキルパワーアップ可能
-
-#### スキル管理システム
-
-`SkillManager` クラスがスキルの管理を担当します。プレイヤーは `SkillManager` を通じてスキルを習得、選択、使用します。
+#### SkillManagerの主要API例
 
 ```typescript
-// SkillManager.ts の主要インターフェース例
+// SkillManager.ts より
 export class SkillManager {
-  constructor(player: Player);
-  public learnSkill(skillId: string): void;
-  public equipSkill(skillId: string, slot: number): void;
-  // ... 他の主要な公開メソッド (例: getAvailableSkills, getEquippedSkills)
+  public static getInstance(): SkillManager;
+  public registerSkill(skill: Skill): void;
+  public getSkill(skillId: string): Skill | undefined;
+  public addSkillToPlayer(player: Player, skillId: string): boolean;
+  public bindSkillToKey(player: Player, skillId: string, key: string): boolean;
+  public executeSkill(
+    player: Player,
+    skillId: string,
+    direction?: THREE.Vector3,
+    getEnemies?: () => any[],
+  ): boolean;
+  public getSkillDescription(skillId: string): string;
+  // ...他、詳細は実装参照
 }
 ```
 
-#### スキルの視覚効果
+#### スキルの習得・バインド・実行フロー
 
-各スキルは独自の視覚効果を持ち、Three.jsのパーティクルシステムなどを使用して表現されます。
+1. **スキルの習得**
+
+   - `SkillManager.addSkillToPlayer(player, skillId)`でプレイヤーにスキルを追加
+
+2. **スキルのバインド**
+
+   - `SkillManager.bindSkillToKey(player, skillId, key)`でQ/W/E/Rキーにスキルを割り当て
+   - 空きスロットに自動バインドする場合は`bindSkillToEmptySlot`を利用
+
+3. **スキルの実行**
+   - `SkillManager.executeSkill(player, skillId, direction, getEnemies)`でスキルを発動
+   - マナ消費やクールダウンは`Player`クラスで管理
+
+#### サンプルコード
+
+```typescript
+const skillManager = SkillManager.getInstance();
+const player = ...; // Playerインスタンス
+
+// スキルを習得
+skillManager.addSkillToPlayer(player, 'magicOrb');
+
+// Qキーにバインド
+skillManager.bindSkillToKey(player, 'magicOrb', 'Q');
+
+// スキルを実行
+skillManager.executeSkill(player, 'magicOrb', direction, getEnemies);
+
+// スキル説明の取得
+const desc = skillManager.getSkillDescription('magicOrb');
+```
+
+#### スキルの説明生成
+
+`SkillManager.getSkillDescription(skillId)`でスキルごとの説明文を自動生成します。
+
+#### UI用スキル選択肢データ
+
+`SkillManager.generateSkillOptions(skillIds)`でUI表示用のスキルリストデータを生成できます。
+
+---
+
+このように、スキルの追加・管理・バインド・実行・説明生成までを`SkillManager`が一元的に担い、拡張性の高いスキルシステムを実現しています。
