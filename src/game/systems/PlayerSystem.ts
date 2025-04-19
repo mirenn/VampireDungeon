@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
 import { PathFindingSystem } from './PathFindingSystem';
+import { SkillDatabase } from '../skills/Skills'; // SkillDatabaseをインポート
 
 export class PlayerSystem {
   private player: Player | null = null;
@@ -391,6 +392,15 @@ export class PlayerSystem {
           );
           return [];
         };
+
+        // スキル実行前にマナをチェック
+        const skill = SkillDatabase[skillId];
+        if (skill && this.player.mana < skill.manaCost) {
+          console.log(
+            `マナが不足しています。必要: ${skill.manaCost}, 現在: ${this.player.mana}`,
+          );
+          return;
+        }
 
         // スキル実行
         this.player.executeSkill(skillId, direction, getEnemiesFunction);

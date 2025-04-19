@@ -451,7 +451,6 @@ export class SkillManager {
   constructor(player: Player);
   public learnSkill(skillId: string): void;
   public equipSkill(skillId: string, slot: number): void;
-  public useSkill(slot: number): void;
   // ... 他の主要な公開メソッド (例: getAvailableSkills, getEquippedSkills)
 }
 ```
