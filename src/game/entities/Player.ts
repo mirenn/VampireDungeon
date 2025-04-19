@@ -28,7 +28,7 @@ export class Player {
   };
   // スキルの最大クールダウン時間
   private skillMaxCooldowns: { [key: string]: number } = {
-    magicOrb: 1, // 攻撃速度に応じて変わる
+    magicOrb: 7, // 1秒から7秒に変更
   };
 
   constructor() {
@@ -286,7 +286,7 @@ export class Player {
   public getSkillCooldown(skillId: string): number {
     switch (skillId) {
       case 'magicOrb': // 'basicAttack'から'magicOrb'に変更
-        return 1 / this.attackSpeed;
+        return SkillDatabase[skillId].cooldown; // 攻撃速度に依存せず、固定値を使用
       // 他のスキルのクールダウン時間をここに追加
       default:
         // スキルデータベースから取得

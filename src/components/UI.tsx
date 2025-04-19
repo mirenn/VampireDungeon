@@ -76,7 +76,7 @@ const UI: React.FC<UIProps> = () => {
                   ></div>
                 </div>
                 <div className="skill-cooldown-text">
-                  {skill.current > 0 ? `${skill.current}s` : '準備完了'}
+                  {skill.current > 0 ? `${skill.current.toFixed(1)}s` : '準備完了'}
                 </div>
               </div>
             ))}
