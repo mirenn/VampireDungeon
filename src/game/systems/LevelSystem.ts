@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { walls as level1Walls } from './LevelPatterns1-1';
 
 interface MapPattern {
   walls: { x: number; y: number; width: number; height: number }[];
@@ -8,18 +9,9 @@ interface MapPattern {
 
 const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
   1: {
-    walls: [
-      // 外周の壁
-      { x: 0, y: 0, width: 50, height: 2 }, // 上壁
-      { x: 0, y: 48, width: 50, height: 2 }, // 下壁
-      { x: 0, y: 0, width: 2, height: 50 }, // 左壁
-      { x: 48, y: 0, width: 2, height: 50 }, // 右壁
-      // 内側の壁と柱
-      { x: 20, y: 10, width: 2, height: 20 }, // 中央の縦壁
-      { x: 10, y: 20, width: 20, height: 2 }, // 中央の横壁
-    ],
+    walls: level1Walls,
     stairs: { x: 45, y: 45, toLevel: 2 },
-    playerSpawn: { x: 10, y: 10 }, // 壁から十分離れた内側の位置に調整
+    playerSpawn: { x: 10, y: 10 },
   },
   2: {
     walls: [
@@ -87,7 +79,7 @@ export class LevelSystem {
 
     // 壁の生成
     pattern.walls.forEach((wall) => {
-      const geometry = new THREE.BoxGeometry(wall.width, 5, wall.height);
+      const geometry = new THREE.BoxGeometry(wall.width, 2.5, wall.height);
       const mesh = new THREE.Mesh(geometry, this.wallMaterial);
       mesh.position.set(wall.x + wall.width / 2, 2.5, wall.y + wall.height / 2);
       this.walls.push(mesh);
