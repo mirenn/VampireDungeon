@@ -34,7 +34,7 @@ src/
   │   └─ systems/     # ゲームシステム
   │   │   ├─ EnemySystem.ts   # 敵の管理
   │   │   ├─ ItemSystem.ts    # アイテムの管理
-  │   │   ├─ LevelSystem.ts   # レベルの生成と管理
+  │   │   ├─ LevelSystem.ts   # 階層の生成と管理
   │   │   ├─ PathFindingSystem.ts # 経路探索システム
   │   │   └─ PlayerSystem.ts  # プレイヤーの入力と状態管理
   │   └─ __tests__/    # テストファイル
