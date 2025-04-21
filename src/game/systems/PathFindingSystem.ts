@@ -434,10 +434,12 @@ export class PathFindingSystem {
   ): THREE.Vector3[] {
     if (!this.navMesh) {
       console.error('ナビメッシュが初期化されていません');
+      // ナビメッシュがない場合は、移動しないように開始点のみを返すか、
+      // もしくは元の目標への直接パスを返す（現在の挙動に近い）
       return [startWorldPos.clone(), endWorldPos.clone()];
     }
 
-    // 開始点と終了点をグリッド座標に変換 (NavMesh側の実装が変更されている)
+    // 開始点と終了点をグリッド座標に変換
     const startGridPos = this.navMesh.worldToGrid(
       startWorldPos.x,
       startWorldPos.z,
@@ -445,92 +447,102 @@ export class PathFindingSystem {
     const endGridPos = this.navMesh.worldToGrid(endWorldPos.x, endWorldPos.z);
     console.log(
       `[PathFinding] Start Grid: ${startGridPos.x},${startGridPos.y} | End Grid: ${endGridPos.x},${endGridPos.y}`,
-    ); // ログ追加
+    );
 
-    const startNode = this.navMesh.getNode(startGridPos.x, startGridPos.y);
-    const targetNode = this.navMesh.getNode(endGridPos.x, endGridPos.y);
+    let startNode = this.navMesh.getNode(startGridPos.x, startGridPos.y);
+    let targetNode = this.navMesh.getNode(endGridPos.x, endGridPos.y);
 
-    if (!startNode || !targetNode) {
+    if (!startNode) {
       console.log(
-        `[PathFinding] 無効な開始点または終了点です。 Start: ${startNode}, Target: ${targetNode}`,
-      ); // ログ追加
+        `[PathFinding] 無効な開始点です。 Grid: (${startGridPos.x},${startGridPos.y})`,
+      );
       this.lastPathfindingSuccess = false;
+      // 開始ノードが無効な場合は移動できないため、開始点のみ返す
+      return [startWorldPos.clone()];
+    }
+    if (!targetNode) {
+      console.log(
+        `[PathFinding] 無効な目標地点です。 Grid: (${endGridPos.x},${endGridPos.y})`,
+      );
+      this.lastPathfindingSuccess = false;
+      // 目標ノードが無効な場合は、元の目標への直接パスを返す（失敗を示す）
       return [startWorldPos.clone(), endWorldPos.clone()];
     }
 
-    let originalStartNode = startNode; // 元の開始ノードを保持
-    let originalTargetNode = targetNode; // 元の目標ノードを保持
+    const originalStartNodeIsWalkable = startNode.isWalkable; // 元の状態を保存
 
     // 開始地点が移動不能な場合は近くの移動可能な場所を探す
     if (!startNode.isWalkable) {
       console.log(
         `[PathFinding] Start node (${startGridPos.x},${startGridPos.y}) is not walkable. Finding nearest walkable node.`,
-      ); // ログ追加
+      );
       const alternativeStart = this.findNearestWalkableNode(startNode);
       if (alternativeStart) {
         console.log(
           `[PathFinding] Found alternative start node: (${alternativeStart.x},${alternativeStart.y})`,
-        ); // ログ追加
-        // startNode = alternativeStart; // findNearestWalkableNodeは探索用であり、開始ノード自体を変更しない方が良い場合がある
-        startNode.isWalkable = true; // 一時的に歩行可能にする (元の挙動を維持)
+        );
+        startNode = alternativeStart; // 開始ノードを更新
       } else {
-        console.log('[PathFinding] No walkable start node found nearby.'); // ログ追加
+        console.log(
+          '[PathFinding] No walkable start node found nearby. Cannot find path.',
+        );
+        this.lastPathfindingSuccess = false;
+        return [startWorldPos.clone()]; // 移動できないので開始点のみ返す
       }
     }
 
-    // 目標地点が移動不能な場合は近くの移動可能な場所を探す
+    // 目標地点が移動不能な場合、最も近い歩行可能なノードを探す
     if (!targetNode.isWalkable) {
       console.log(
         `[PathFinding] Target node (${endGridPos.x},${endGridPos.y}) is not walkable. Finding nearest walkable node.`,
-      ); // ログ追加
-      const alternativeTarget = this.findNearestWalkableNode(targetNode);
+      );
+      const alternativeTarget = this.findNearestWalkableNode(targetNode); // 元の目標ノードを基準に探す
       if (alternativeTarget) {
         console.log(
           `[PathFinding] Found alternative target node: (${alternativeTarget.x},${alternativeTarget.y})`,
-        ); // ログ追加
-        const alternativePath = this.aStarSearch(startNode, alternativeTarget);
-        if (alternativePath.length > 0) {
-          console.log('[PathFinding] Path found to alternative target.'); // ログ追加
-          this.lastPathfindingSuccess = true;
-          const optimizedPath = this.optimizePath(alternativePath);
-          console.log(
-            '[PathFinding] Optimized Path (Alternative Target):',
-            optimizedPath
-              .map((p) => `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`)
-              .join(' -> '),
-          ); // ログ追加
-          return optimizedPath;
+        );
+        targetNode = alternativeTarget; // targetNode を更新
+      } else {
+        console.log(
+          '[PathFinding] No walkable target node found nearby. Returning direct path to original target world pos.',
+        );
+        this.lastPathfindingSuccess = false;
+        // 開始ノードの状態を元に戻す必要はない（alternativeStart で置き換えたため）
+        // このケースでは alternativeStart は使われていないが、念のため
+        if (
+          !originalStartNodeIsWalkable &&
+          startNode !== this.navMesh.getNode(startGridPos.x, startGridPos.y)
+        ) {
+          // startNodeが変更された場合、元のノードの状態を復元する必要があるかもしれないが、
+          // findNearestWalkableNode は新しいノードを返すだけなので、元のノードの状態は変わらないはず。
+          // ただし、startNode.isWalkable = true のような一時的な変更をしていた場合は戻す必要がある。
+          // ここでは startNode を alternativeStart で置き換えているため、元のノードの isWalkable を戻す必要はない。
         }
+        return [startWorldPos.clone(), endWorldPos.clone()]; // 近くに歩行可能な場所がなければ元の目標への直接パスを返す
       }
-
-      console.log('[PathFinding] 目標地点は移動不可能です。直接経路を返します');
-      this.lastPathfindingSuccess = false;
-      return [startWorldPos.clone(), endWorldPos.clone()];
     }
 
-    // A*アルゴリズムでパスを探索
+    // A*アルゴリズムでパスを探索 (更新された可能性のある startNode と targetNode を使用)
     console.log(
       `[PathFinding] Running A* from (${startNode.x},${startNode.y}) to (${targetNode.x},${targetNode.y})`,
-    ); // ログ追加
+    );
     const path = this.aStarSearch(startNode, targetNode);
 
-    // 開始ノードを元に戻す（一時的に isWalkable を true にした場合）
-    if (originalStartNode !== startNode && !originalStartNode.isWalkable) {
-      startNode.isWalkable = false;
-    }
+    // 開始ノードの状態を元に戻す必要はない（alternativeStart で置き換えたため）
 
     if (path.length === 0) {
       console.log(
         '[PathFinding] 経路が見つかりませんでした。直接経路を返します',
       );
       this.lastPathfindingSuccess = false;
+      // A*で見つからなかった場合も、元の目標への直接パスを返す
       return [startWorldPos.clone(), endWorldPos.clone()];
     }
 
     console.log(
       '[PathFinding] Raw Path Found:',
       path.map((p) => `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`).join(' -> '),
-    ); // ログ追加
+    );
     this.lastPathfindingSuccess = true;
     const optimizedPath = this.optimizePath(path);
     console.log(
@@ -538,7 +550,7 @@ export class PathFindingSystem {
       optimizedPath
         .map((p) => `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`)
         .join(' -> '),
-    ); // ログ追加
+    );
     return optimizedPath;
   }
 
