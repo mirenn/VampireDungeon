@@ -71,7 +71,7 @@ export class GameManager {
     this.itemSystem = new ItemSystem(this.scene);
 
     // パスファインディングシステムの初期化（LevelSystemに依存）
-    this.pathFindingSystem = new PathFindingSystem(this.levelSystem, 1);
+    this.pathFindingSystem = new PathFindingSystem(this.levelSystem);
 
     // イベントリスナーの設定
     window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -114,8 +114,60 @@ export class GameManager {
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
 
-    // パスファインディングシステムにレベル変更を通知
-    this.pathFindingSystem.updateGrid();
+    // パスファインディングシステムにナビメッシュデータを設定
+    // 仮のナビメッシュデータ（40x40のグリッド、周囲に壁がある形）
+    const navMeshSize = 40;
+    const navMeshData: number[][] = [];
+
+    for (let y = 0; y < navMeshSize; y++) {
+      navMeshData[y] = [];
+      for (let x = 0; x < navMeshSize; x++) {
+        // 外周は壁（移動不可）、それ以外は移動可能
+        if (
+          x === 0 ||
+          y === 0 ||
+          x === navMeshSize - 1 ||
+          y === navMeshSize - 1
+        ) {
+          navMeshData[y][x] = 0; // 移動不可
+        } else {
+          navMeshData[y][x] = 1; // 移動可能
+        }
+      }
+    }
+
+    // レベルの壁に基づいてナビメッシュを更新
+    // TODO: 将来的にはレベルシステムから壁情報を取得し、より正確なナビメッシュを生成する
+    const walls = this.levelSystem.getWalls();
+    if (walls) {
+      walls.forEach((wall) => {
+        if (wall.userData.boundingBox) {
+          const boundingBox = wall.userData.boundingBox as THREE.Box3;
+
+          // バウンディングボックスの中心点をナビメッシュのセル座標に変換
+          const centerX =
+            Math.floor((boundingBox.min.x + boundingBox.max.x) / 2) +
+            navMeshSize / 2;
+          const centerZ =
+            Math.floor((boundingBox.min.z + boundingBox.max.z) / 2) +
+            navMeshSize / 2;
+
+          // 壁の周囲のセルを移動不可にする
+          const wallSize = 2; // 壁のサイズに応じて調整
+          for (let y = centerZ - wallSize; y <= centerZ + wallSize; y++) {
+            for (let x = centerX - wallSize; x <= centerX + wallSize; x++) {
+              if (x >= 0 && x < navMeshSize && y >= 0 && y < navMeshSize) {
+                navMeshData[y][x] = 0;
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ナビメッシュデータを設定
+    this.pathFindingSystem.setNavMeshData(navMeshData);
+    console.log('ナビメッシュデータを初期化しました');
 
     // プレイヤーの参照をシステム間で共有
     const player = this.playerSystem.getPlayer();
@@ -324,11 +376,7 @@ export class GameManager {
     if (player) {
       // パスファインディングシステムからデバッグオブジェクトを生成
       this.pathfindingDebugObject =
-        this.pathFindingSystem.createDebugVisualization(
-          player.getPosition(),
-          true, // パスを表示
-          playerPath,
-        );
+        this.pathFindingSystem.createDebugVisualization(player.getPosition());
     }
 
     if (!this.pathfindingDebugObject) return;
