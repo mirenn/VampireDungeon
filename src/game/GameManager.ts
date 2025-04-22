@@ -117,8 +117,17 @@ export class GameManager {
     // パスファインディングシステムにナビメッシュデータを設定
     // 仮のナビメッシュデータ（40x40のグリッド、すべて移動不可で初期化）
     // TODO: マップサイズを動的に取得するように変更する
-    const navMeshSizeX = 60; // 仮のXサイズ (Level 1 に合わせる)
-    const navMeshSizeY = 60; // 仮のYサイズ (Level 1 に合わせる)
+    // レベルの床タイルに基づいてナビメッシュサイズを動的に決定
+    const floorTiles = this.levelSystem.getFloorTiles();
+    let navMeshSizeX = 120;
+    let navMeshSizeY = 120;
+    if (floorTiles && floorTiles.length > 0) {
+      // x, yの最大値を取得
+      const maxX = Math.max(...floorTiles.map((tile) => tile.x));
+      const maxY = Math.max(...floorTiles.map((tile) => tile.y));
+      navMeshSizeX = Math.max(maxX + 1, 120);
+      navMeshSizeY = Math.max(maxY + 1, 120);
+    }
     const navMeshData: number[][] = [];
 
     for (let y = 0; y < navMeshSizeY; y++) {
@@ -129,7 +138,6 @@ export class GameManager {
     }
 
     // レベルの床タイルに基づいてナビメッシュを更新
-    const floorTiles = this.levelSystem.getFloorTiles();
     if (floorTiles) {
       floorTiles.forEach((tile) => {
         // floorTiles の座標が navMeshData の範囲内にあるか確認
