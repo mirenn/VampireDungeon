@@ -1,8 +1,19 @@
 import * as THREE from 'three';
-import { walls as level1Walls } from './LevelPatterns1-1';
+// 生成されたレベルパターンファイルをインポート
+import {
+  walls as level1Walls,
+  floors as level1Floors,
+} from './LevelPatterns1-1'; // floors をインポート
+
+// タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
+interface TilePosition {
+  x: number;
+  y: number;
+}
 
 interface MapPattern {
   walls: { x: number; y: number; width: number; height: number }[];
+  floors: TilePosition[]; // floors プロパティを追加
   stairs: { x: number; y: number; toLevel: number };
   playerSpawn?: { x: number; y: number };
 }
@@ -10,10 +21,12 @@ interface MapPattern {
 const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
   1: {
     walls: level1Walls,
+    floors: level1Floors, // level1Floors を設定
     stairs: { x: 45, y: 45, toLevel: 2 },
     playerSpawn: { x: 10, y: 10 },
   },
   2: {
+    // TODO: Level 2 の floors データを生成・インポートする
     walls: [
       // 外周の壁
       { x: 0, y: 0, width: 60, height: 2 },
@@ -26,10 +39,16 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
       { x: 43, y: 15, width: 2, height: 30 },
       { x: 15, y: 43, width: 30, height: 2 },
     ],
+    floors: [
+      // 仮の床データ (Level 2 用に生成されたデータに置き換える)
+      { x: 1, y: 1 },
+      { x: 2, y: 1 }, // ...
+    ],
     stairs: { x: 55, y: 55, toLevel: 3 },
     playerSpawn: { x: 20, y: 20 }, // 壁から十分離れた内側の位置に調整
   },
   3: {
+    // TODO: Level 3 の floors データを生成・インポートする
     walls: [
       // 外周の壁（広いボス部屋）
       { x: 0, y: 0, width: 80, height: 2 },
@@ -42,6 +61,11 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
       { x: 10, y: 66, width: 4, height: 4 },
       { x: 66, y: 66, width: 4, height: 4 },
     ],
+    floors: [
+      // 仮の床データ (Level 3 用に生成されたデータに置き換える)
+      { x: 1, y: 1 },
+      { x: 2, y: 1 }, // ...
+    ],
     stairs: { x: 40, y: 40, toLevel: -1 }, // -1は最終階層を示す
     playerSpawn: { x: 25, y: 25 }, // 壁と柱から十分離れた内側の位置に調整
   },
@@ -51,6 +75,7 @@ export class LevelSystem {
   private scene: THREE.Scene;
   private currentLevel: number = 1;
   private walls: THREE.Mesh[] = [];
+  private floorTiles: TilePosition[] = []; // 床タイルの座標を保持する配列
   private stairs?: THREE.Mesh;
   private wallMaterial: THREE.Material;
   private stairsMaterial: THREE.Material;
@@ -77,11 +102,19 @@ export class LevelSystem {
     this.currentLevel = level;
     const pattern = FLOOR_PATTERNS[level];
 
+    // 床タイルデータの読み込み
+    this.floorTiles = pattern.floors; // パターンから床タイルデータを取得
+
     // 壁の生成
     pattern.walls.forEach((wall) => {
-      const geometry = new THREE.BoxGeometry(wall.width, 2.5, wall.height);
+      const geometry = new THREE.BoxGeometry(wall.width, 2.5, wall.height); // 壁の高さは 2.5
       const mesh = new THREE.Mesh(geometry, this.wallMaterial);
-      mesh.position.set(wall.x + wall.width / 2, 2.5, wall.y + wall.height / 2);
+      // メッシュの中心 Y 座標を高さの半分 (1.25) に設定し、底面が Y=0 になるようにする
+      mesh.position.set(
+        wall.x + wall.width / 2,
+        1.25,
+        wall.y + wall.height / 2,
+      );
       this.walls.push(mesh);
       this.scene.add(mesh);
     });
@@ -100,6 +133,9 @@ export class LevelSystem {
       wall.geometry.dispose();
     });
     this.walls = [];
+
+    // 床タイルデータのクリア
+    this.floorTiles = [];
 
     // 階段の削除
     if (this.stairs) {
@@ -167,6 +203,11 @@ export class LevelSystem {
   // 壁のメッシュを取得
   public getWalls(): THREE.Mesh[] {
     return this.walls;
+  }
+
+  // 床タイルの座標リストを取得
+  public getFloorTiles(): TilePosition[] {
+    return this.floorTiles;
   }
 
   public dispose(): void {

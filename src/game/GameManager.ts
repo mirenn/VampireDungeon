@@ -71,7 +71,7 @@ export class GameManager {
     this.itemSystem = new ItemSystem(this.scene);
 
     // パスファインディングシステムの初期化（LevelSystemに依存）
-    this.pathFindingSystem = new PathFindingSystem(this.levelSystem, 1);
+    this.pathFindingSystem = new PathFindingSystem(this.levelSystem);
 
     // イベントリスナーの設定
     window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -114,8 +114,54 @@ export class GameManager {
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
 
-    // パスファインディングシステムにレベル変更を通知
-    this.pathFindingSystem.updateGrid();
+    // パスファインディングシステムにナビメッシュデータを設定
+    // 仮のナビメッシュデータ（40x40のグリッド、すべて移動不可で初期化）
+    // TODO: マップサイズを動的に取得するように変更する
+    // レベルの床タイルに基づいてナビメッシュサイズを動的に決定
+    const floorTiles = this.levelSystem.getFloorTiles();
+    let navMeshSizeX = 120;
+    let navMeshSizeY = 120;
+    if (floorTiles && floorTiles.length > 0) {
+      // x, yの最大値を取得
+      const maxX = Math.max(...floorTiles.map((tile) => tile.x));
+      const maxY = Math.max(...floorTiles.map((tile) => tile.y));
+      navMeshSizeX = Math.max(maxX + 1, 120);
+      navMeshSizeY = Math.max(maxY + 1, 120);
+    }
+    const navMeshData: number[][] = [];
+
+    for (let y = 0; y < navMeshSizeY; y++) {
+      navMeshData[y] = [];
+      for (let x = 0; x < navMeshSizeX; x++) {
+        navMeshData[y][x] = 0; // 0: 移動不可
+      }
+    }
+
+    // レベルの床タイルに基づいてナビメッシュを更新
+    if (floorTiles) {
+      floorTiles.forEach((tile) => {
+        // floorTiles の座標が navMeshData の範囲内にあるか確認
+        if (
+          tile.x >= 0 &&
+          tile.x < navMeshSizeX &&
+          tile.y >= 0 &&
+          tile.y < navMeshSizeY
+        ) {
+          // Tiled の座標系 (左上原点) と navMeshData の配列インデックスが一致すると仮定
+          navMeshData[tile.y][tile.x] = 1; // 1: 移動可能
+        } else {
+          console.warn(
+            `Floor tile at (${tile.x}, ${tile.y}) is outside the navMesh bounds (${navMeshSizeX}x${navMeshSizeY}).`,
+          );
+        }
+      });
+    } else {
+      console.warn('Floor tiles data not found for navmesh generation.');
+    }
+
+    // ナビメッシュデータを設定
+    this.pathFindingSystem.setNavMeshData(navMeshData);
+    console.log('ナビメッシュデータを床タイルから初期化しました');
 
     // プレイヤーの参照をシステム間で共有
     const player = this.playerSystem.getPlayer();
@@ -324,11 +370,7 @@ export class GameManager {
     if (player) {
       // パスファインディングシステムからデバッグオブジェクトを生成
       this.pathfindingDebugObject =
-        this.pathFindingSystem.createDebugVisualization(
-          player.getPosition(),
-          true, // パスを表示
-          playerPath,
-        );
+        this.pathFindingSystem.createDebugVisualization(player.getPosition());
     }
 
     if (!this.pathfindingDebugObject) return;

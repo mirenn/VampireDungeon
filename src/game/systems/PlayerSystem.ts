@@ -80,7 +80,7 @@ export class PlayerSystem {
   public update(deltaTime: number): void {
     if (!this.player || !this.levelSystem) return;
 
-    // 現在位置を保存（衝突判定後に戻すため）
+    // 現在位置を保存（移動不可能領域に入った場合に戻すため）
     const oldPosition = this.player.mesh.position.clone();
     let movementOccurred = false;
 
@@ -188,101 +188,44 @@ export class PlayerSystem {
     // プレイヤーの更新処理
     this.player.update(deltaTime);
 
-    // 壁との衝突判定
-    if (this.levelSystem) {
-      const playerBoundingBox = this.player.mesh.userData.boundingBox;
-      if (this.levelSystem.checkWallCollision(playerBoundingBox)) {
-        // 移動が発生した場合のみ衝突チェックを行う
-        if (movementOccurred) {
-          // 移動ベクトルを計算（現在位置 - 前回の位置）
-          const moveVector = new THREE.Vector3().subVectors(
-            this.player.mesh.position,
-            oldPosition,
-          );
+    // ナビメッシュを使って移動可能かどうかを判定
+    if (this.pathFindingSystem && this.pathFindingSystem['navMesh']) {
+      const navMesh = this.pathFindingSystem['navMesh'];
+      const currentPos = this.player.getPosition();
+      const gridPos = navMesh.worldToGrid(currentPos.x, currentPos.z);
+      const node = navMesh.getNode(gridPos.x, gridPos.y);
 
-          // 壁から離れる方向への移動かどうかを判定
-          const walls = this.levelSystem.getWalls();
-          let nearestWall: THREE.Object3D | null = null;
-          let minDistance = Number.MAX_VALUE;
+      // 現在位置が歩行不可能な場合は前の位置に戻す
+      if (!node || !node.isWalkable) {
+        console.log(
+          `プレイヤーが移動不可能領域(${gridPos.x},${gridPos.y})に入りました。位置を戻します。`,
+        );
+        this.player.mesh.position.copy(oldPosition);
+        this.player.update(0); // バウンディングボックスを更新
 
-          for (const wall of walls) {
-            const wallBox =
-              wall.userData.boundingBox || new THREE.Box3().setFromObject(wall);
-            const wallCenter = new THREE.Vector3();
-            wallBox.getCenter(wallCenter);
-
-            const distanceToWall =
-              this.player.mesh.position.distanceTo(wallCenter);
-            if (distanceToWall < minDistance) {
-              minDistance = distanceToWall;
-              nearestWall = wall;
-            }
-          }
-
-          if (nearestWall) {
-            const wallBox =
-              nearestWall.userData.boundingBox ||
-              new THREE.Box3().setFromObject(nearestWall);
-            const wallCenter = new THREE.Vector3();
-            wallBox.getCenter(wallCenter);
-
-            // プレイヤーから壁の中心への方向ベクトル
-            const toWall = new THREE.Vector3()
-              .subVectors(wallCenter, this.player.mesh.position)
-              .normalize();
-            // 移動方向と壁への方向のドット積
-            const dot = moveVector.normalize().dot(toWall);
-
-            // 壁から離れる方向への移動（ドット積が負）の場合は許可
-            if (dot < 0) {
-              // 移動を許可（位置を戻さない）
-              this.player.update(0); // バウンディングボックスを更新
-            } else {
-              // 壁に近づく移動は禁止（位置を戻す）
-              this.player.mesh.position.copy(oldPosition);
-              this.player.update(0); // バウンディングボックスを更新
-
-              if (this.consecutiveCollisions === undefined) {
-                this.consecutiveCollisions = 0;
-              }
-              this.consecutiveCollisions++;
-
-              if (this.consecutiveCollisions > 5) {
-                console.log(
-                  'プレイヤーが危険な位置にいます。安全な位置を探します。',
-                );
-                this.findAndMoveToSafePosition();
-                this.consecutiveCollisions = 0;
-              }
-
-              if (this.pathToFollow.length > 0) {
-                setTimeout(() => this.recalculatePath(), 100);
-              }
-            }
-          }
-        } else {
-          // 移動がない場合は通常通り位置を戻す
-          this.player.mesh.position.copy(oldPosition);
-          this.player.update(0);
+        // パスがある場合は再計算
+        if (this.pathToFollow.length > 0) {
+          setTimeout(() => this.recalculatePath(), 100);
         }
       } else {
-        // 衝突していない場合はカウンターをリセット
+        // 移動可能領域にいる場合はカウンターリセット
         this.consecutiveCollisions = 0;
       }
+    }
 
-      // 出口との衝突判定
-      if (this.levelSystem.checkExitCollision(playerBoundingBox)) {
-        // 次のレベルへ進む
-        const nextLevel = this.levelSystem.getCurrentLevel() + 1;
-        this.levelSystem.loadLevel(nextLevel);
-        console.log(`レベル${nextLevel}へ進みました！`);
+    // 出口との衝突判定
+    const playerBoundingBox = this.player.mesh.userData.boundingBox;
+    if (this.levelSystem.checkExitCollision(playerBoundingBox)) {
+      // 次のレベルへ進む
+      const nextLevel = this.levelSystem.getCurrentLevel() + 1;
+      this.levelSystem.loadLevel(nextLevel);
+      console.log(`レベル${nextLevel}へ進みました！`);
 
-        // パスをクリア
-        this.clearPath();
+      // パスをクリア
+      this.clearPath();
 
-        // グローバルレベル情報を更新（UI用）
-        (window as any).gameLevel = nextLevel;
-      }
+      // グローバルレベル情報を更新（UI用）
+      (window as any).gameLevel = nextLevel;
     }
 
     // カメラの位置を更新
