@@ -3,15 +3,16 @@ import { Player } from '../entities/Player';
 
 // スキルインターフェースを定義
 export interface Skill {
-  id: string; // スキルID
-  name: string; // スキルの表示名
-  cooldown: number; // クールダウン時間（秒）
-  manaCost: number; // マナコスト
+  id: string;
+  name: string;
+  cooldown: number;
+  manaCost: number;
   execute: (
     player: Player,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
-  ) => void; // スキル実行関数
+    getTombstones?: () => any[], // 追加
+  ) => void;
 }
 
 // スキルの実装を集約するクラス
@@ -21,9 +22,9 @@ export class Skills {
     player: Player,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
+    getTombstones?: () => any[], // 追加
   ): void {
-    // 魔法のオーブエフェクトを表示
-    Skills.createMagicOrbEffect(player, direction, getEnemies);
+    Skills.createMagicOrbEffect(player, direction, getEnemies, getTombstones);
   }
 
   // 魔法のオーブ攻撃エフェクトを表示するメソッド
@@ -31,6 +32,7 @@ export class Skills {
     player: Player,
     customDirection?: THREE.Vector3,
     getEnemies?: () => any[],
+    getTombstones?: () => any[], // 追加
   ): void {
     // 攻撃エフェクト（球）を作成
     const attackEffect = new THREE.Mesh(
@@ -191,6 +193,29 @@ export class Skills {
           console.warn(
             'getEnemies function was not provided to createMagicOrbEffect',
           );
+        }
+
+        // --- 敵との衝突判定の直後に墓石との衝突判定を追加 ---
+        // 墓石との衝突判定
+        if (getTombstones) {
+          const tombstones = getTombstones();
+          for (const tombstone of tombstones) {
+            if (tombstone.isDestroyed) continue;
+            if (
+              typeof tombstone.checkCollision === 'function' &&
+              tombstone.checkCollision(attackEffect.userData.boundingBox)
+            ) {
+              tombstone.destroy();
+              // 墓石の見た目を消す
+              if (tombstone.mesh && tombstone.mesh.parent) {
+                tombstone.mesh.parent.remove(tombstone.mesh);
+                tombstone.mesh.geometry?.dispose();
+                if (tombstone.mesh.material?.dispose)
+                  tombstone.mesh.material.dispose();
+              }
+              // TODO: ナビメッシュ再生成処理をここに追加
+            }
+          }
         }
 
         // 最大距離に達したら戻り始める

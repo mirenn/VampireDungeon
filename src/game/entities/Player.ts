@@ -261,11 +261,12 @@ export class Player {
     skillId: string,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
+    getTombstones?: () => any[], // 追加
   ): boolean {
     if (this.tryConsumeSkill(skillId)) {
       const skill = SkillDatabase[skillId];
       if (skill) {
-        skill.execute(this, direction, getEnemies);
+        skill.execute(this, direction, getEnemies, getTombstones);
         return true;
       }
     }

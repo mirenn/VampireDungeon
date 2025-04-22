@@ -82,6 +82,7 @@ export class SkillManager {
     skillId: string,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
+    getTombstones?: () => any[], // 追加
   ): boolean {
     // スキルが存在するか確認
     const skill = this.getSkill(skillId);
@@ -99,7 +100,7 @@ export class SkillManager {
     }
 
     // スキル実行（プレイヤー内部でマナ消費の処理が行われる）
-    return player.executeSkill(skillId, direction, getEnemies);
+    return player.executeSkill(skillId, direction, getEnemies, getTombstones);
   }
 
   /**

@@ -32,6 +32,8 @@ export class GameManager {
   // キーボード入力の状態を管理
   private keysPressed: { [key: string]: boolean } = {};
 
+  private navMeshData: number[][] = [];
+
   constructor(private container: HTMLElement) {
     // シーンの作成
     this.scene = new THREE.Scene();
@@ -114,6 +116,17 @@ export class GameManager {
     // レベルの読み込み
     this.levelSystem.loadLevel(1);
 
+    // 墓石破壊時のナビメッシュ更新コールバックを設定
+    this.levelSystem.onTombstoneDestroyed = (x: number, y: number) => {
+      if (
+        this.navMeshData[y] &&
+        typeof this.navMeshData[y][x] !== 'undefined'
+      ) {
+        this.navMeshData[y][x] = 1;
+        this.pathFindingSystem.setNavMeshData(this.navMeshData);
+      }
+    };
+
     // パスファインディングシステムにナビメッシュデータを設定
     // 仮のナビメッシュデータ（40x40のグリッド、すべて移動不可で初期化）
     // TODO: マップサイズを動的に取得するように変更する
@@ -160,7 +173,8 @@ export class GameManager {
     }
 
     // ナビメッシュデータを設定
-    this.pathFindingSystem.setNavMeshData(navMeshData);
+    this.navMeshData = navMeshData;
+    this.pathFindingSystem.setNavMeshData(this.navMeshData);
     console.log('ナビメッシュデータを床タイルから初期化しました');
 
     // プレイヤーの参照をシステム間で共有
