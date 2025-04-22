@@ -6,7 +6,7 @@ export class Tombstone {
   x: number;
   y: number;
   isDestroyed: boolean = false;
-  mesh?: THREE.Mesh; // 追加
+  mesh?: THREE.Object3D; // MeshからObject3Dに変更
   onDestroyed?: () => void;
   constructor(x: number, y: number) {
     this.x = x;
