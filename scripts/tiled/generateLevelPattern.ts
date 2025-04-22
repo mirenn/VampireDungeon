@@ -166,9 +166,24 @@ function main() {
     process.exit(1);
   }
 
-  const { width, height, data } = wallLayer;
+  // Floor レイヤーを取得
+  const floorLayer = map.layers.find((l) => l.name === 'Floor');
+  if (!floorLayer) {
+    console.error('Layer "Floor" が見つかりません');
+    process.exit(1);
+  }
+
+  const { width, height, data: wallData } = wallLayer;
   // タイル GID != 0 を「Wall」とみなす
-  const walls: TilePosition[] = data
+  const walls: TilePosition[] = wallData
+    .map((gid, i) =>
+      gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
+    )
+    .filter(Boolean) as TilePosition[];
+
+  // Floor レイヤーのタイルデータを抽出
+  const { data: floorData } = floorLayer;
+  const floors: TilePosition[] = floorData
     .map((gid, i) =>
       gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
     )
@@ -189,6 +204,11 @@ function main() {
       `  { x: ${w.x}, y: ${w.y}, width: ${w.width}, height: ${w.height} },`,
     ),
   );
+  console.log('];');
+
+  // Floor データをエクスポート
+  console.log('\nexport const floors = [');
+  floors.forEach((f) => console.log(`  { x: ${f.x}, y: ${f.y} },`));
   console.log('];');
 }
 

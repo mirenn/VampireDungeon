@@ -115,59 +115,45 @@ export class GameManager {
     this.levelSystem.loadLevel(1);
 
     // パスファインディングシステムにナビメッシュデータを設定
-    // 仮のナビメッシュデータ（40x40のグリッド、周囲に壁がある形）
-    const navMeshSize = 40;
+    // 仮のナビメッシュデータ（40x40のグリッド、すべて移動不可で初期化）
+    // TODO: マップサイズを動的に取得するように変更する
+    const navMeshSizeX = 60; // 仮のXサイズ (Level 1 に合わせる)
+    const navMeshSizeY = 60; // 仮のYサイズ (Level 1 に合わせる)
     const navMeshData: number[][] = [];
 
-    for (let y = 0; y < navMeshSize; y++) {
+    for (let y = 0; y < navMeshSizeY; y++) {
       navMeshData[y] = [];
-      for (let x = 0; x < navMeshSize; x++) {
-        // 外周は壁（移動不可）、それ以外は移動可能
-        if (
-          x === 0 ||
-          y === 0 ||
-          x === navMeshSize - 1 ||
-          y === navMeshSize - 1
-        ) {
-          navMeshData[y][x] = 0; // 移動不可
-        } else {
-          navMeshData[y][x] = 1; // 移動可能
-        }
+      for (let x = 0; x < navMeshSizeX; x++) {
+        navMeshData[y][x] = 0; // 0: 移動不可
       }
     }
 
-    // レベルの壁に基づいてナビメッシュを更新
-    // TODO: 将来的にはレベルシステムから壁情報を取得し、より正確なナビメッシュを生成する
-    const walls = this.levelSystem.getWalls();
-    if (walls) {
-      walls.forEach((wall) => {
-        if (wall.userData.boundingBox) {
-          const boundingBox = wall.userData.boundingBox as THREE.Box3;
-
-          // バウンディングボックスの中心点をナビメッシュのセル座標に変換
-          const centerX =
-            Math.floor((boundingBox.min.x + boundingBox.max.x) / 2) +
-            navMeshSize / 2;
-          const centerZ =
-            Math.floor((boundingBox.min.z + boundingBox.max.z) / 2) +
-            navMeshSize / 2;
-
-          // 壁の周囲のセルを移動不可にする
-          const wallSize = 2; // 壁のサイズに応じて調整
-          for (let y = centerZ - wallSize; y <= centerZ + wallSize; y++) {
-            for (let x = centerX - wallSize; x <= centerX + wallSize; x++) {
-              if (x >= 0 && x < navMeshSize && y >= 0 && y < navMeshSize) {
-                navMeshData[y][x] = 0;
-              }
-            }
-          }
+    // レベルの床タイルに基づいてナビメッシュを更新
+    const floorTiles = this.levelSystem.getFloorTiles();
+    if (floorTiles) {
+      floorTiles.forEach((tile) => {
+        // floorTiles の座標が navMeshData の範囲内にあるか確認
+        if (
+          tile.x >= 0 &&
+          tile.x < navMeshSizeX &&
+          tile.y >= 0 &&
+          tile.y < navMeshSizeY
+        ) {
+          // Tiled の座標系 (左上原点) と navMeshData の配列インデックスが一致すると仮定
+          navMeshData[tile.y][tile.x] = 1; // 1: 移動可能
+        } else {
+          console.warn(
+            `Floor tile at (${tile.x}, ${tile.y}) is outside the navMesh bounds (${navMeshSizeX}x${navMeshSizeY}).`,
+          );
         }
       });
+    } else {
+      console.warn('Floor tiles data not found for navmesh generation.');
     }
 
     // ナビメッシュデータを設定
     this.pathFindingSystem.setNavMeshData(navMeshData);
-    console.log('ナビメッシュデータを初期化しました');
+    console.log('ナビメッシュデータを床タイルから初期化しました');
 
     // プレイヤーの参照をシステム間で共有
     const player = this.playerSystem.getPlayer();

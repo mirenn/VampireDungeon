@@ -6,7 +6,7 @@ export class NavMeshNode {
   public x: number;
   public y: number;
   public isWalkable: boolean;
-  public gCost: number = 0;
+  public gCost: number = Infinity; // ← ここを修正
   public hCost: number = 0;
   public parent: NavMeshNode | null = null;
 
@@ -97,12 +97,17 @@ export class NavMesh {
           checkY >= 0 &&
           checkY < this.height
         ) {
-          // 斜め移動の場合、両側のノードが壁でないことを確認（コーナーカット防止）
+          // 斜め移動の場合、どちらか一方でも通路なら斜め移動を許可（コーナーカット防止を緩和）
           if (Math.abs(x) == 1 && Math.abs(y) == 1) {
             const nodeA = this.getNode(node.x + x, node.y);
             const nodeB = this.getNode(node.x, node.y + y);
 
-            if (nodeA && nodeB && (!nodeA.isWalkable || !nodeB.isWalkable)) {
+            // どちらも壁のときだけ不可（どちらか通路ならOK）
+            if (nodeA && nodeB && !nodeA.isWalkable && !nodeB.isWalkable) {
+              // ログ追加: 斜め移動がコーナーカットで拒否された場合
+              console.log(
+                `[PathFinding][Neighbor] 斜め(${node.x},${node.y})→(${checkX},${checkY})は両側壁で不可`,
+              );
               continue;
             }
           }
@@ -110,9 +115,24 @@ export class NavMesh {
           const neighbor = this.nodes[checkY][checkX];
           if (neighbor.isWalkable) {
             neighbors.push(neighbor);
+          } else {
+            // ログ追加: 隣接ノードが壁の場合
+            console.log(
+              `[PathFinding][Neighbor] (${checkX},${checkY})は壁で不可`,
+            );
           }
+        } else {
+          // ログ追加: 範囲外
+          // console.log(`[PathFinding][Neighbor] (${checkX},${checkY})は範囲外`);
         }
       }
+    }
+
+    // ログ追加: 隣接ノード数
+    if (neighbors.length === 0) {
+      console.log(
+        `[PathFinding][Neighbor] (${node.x},${node.y})から進める隣接ノードがありません`,
+      );
     }
 
     return neighbors;
@@ -286,7 +306,7 @@ export class PathFindingSystem {
       for (let x = 0; x < dimensions.width; x++) {
         const node = this.navMesh.getNode(x, y);
         if (node) {
-          node.gCost = 0;
+          node.gCost = Infinity; // ← ここを修正
           node.hCost = 0;
           node.parent = null;
         }
@@ -326,6 +346,13 @@ export class PathFindingSystem {
       // 隣接ノードを処理
       const neighbors = this.navMesh.getNeighbors(currentNode);
 
+      // ログ追加: 現在のノードと隣接ノード数
+      if (neighbors.length === 0) {
+        console.log(
+          `[PathFinding][A*] (${currentNode.x},${currentNode.y})で詰みました（進める隣接ノードなし）`,
+        );
+      }
+
       for (const neighbor of neighbors) {
         if (closedSet.has(neighbor)) continue;
 
@@ -350,6 +377,9 @@ export class PathFindingSystem {
     }
 
     // パスが見つからなかった場合は空の配列を返す
+    console.log(
+      `[PathFinding][A*] openSetが空になりました。パスが見つかりません。`,
+    );
     return [];
   }
 
@@ -445,6 +475,12 @@ export class PathFindingSystem {
       startWorldPos.z,
     );
     const endGridPos = this.navMesh.worldToGrid(endWorldPos.x, endWorldPos.z);
+
+    // ★ここで移動先パネルのグリッド座標と自身のパネル座標をログ出力
+    console.log(
+      `[PathFinding] 自身のパネル: (${startGridPos.x}, ${startGridPos.y}) | 移動先のパネル: (${endGridPos.x}, ${endGridPos.y}) (左上が0,0, 120x120グリッド)`,
+    );
+
     console.log(
       `[PathFinding] Start Grid: ${startGridPos.x},${startGridPos.y} | End Grid: ${endGridPos.x},${endGridPos.y}`,
     );
@@ -541,16 +577,28 @@ export class PathFindingSystem {
 
     console.log(
       '[PathFinding] Raw Path Found:',
-      path.map((p) => `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`).join(' -> '),
+      path
+        .map((p, i) => {
+          const grid = this.navMesh?.worldToGrid(p.x, p.z);
+          const node = grid && this.navMesh?.getNode(grid.x, grid.y);
+          return `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})[grid:${grid?.x},${grid?.y},walkable:${node?.isWalkable}]`;
+        })
+        .join(' -> '),
     );
+    console.log(`[PathFinding] Raw Path Length: ${path.length}`);
     this.lastPathfindingSuccess = true;
     const optimizedPath = this.optimizePath(path);
     console.log(
       '[PathFinding] Optimized Path:',
       optimizedPath
-        .map((p) => `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`)
+        .map((p, i) => {
+          const grid = this.navMesh?.worldToGrid(p.x, p.z);
+          const node = grid && this.navMesh?.getNode(grid.x, grid.y);
+          return `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})[grid:${grid?.x},${grid?.y},walkable:${node?.isWalkable}]`;
+        })
         .join(' -> '),
     );
+    console.log(`[PathFinding] Optimized Path Length: ${optimizedPath.length}`);
     return optimizedPath;
   }
 
@@ -562,21 +610,39 @@ export class PathFindingSystem {
     const optimizedPath: THREE.Vector3[] = [path[0]];
     let currentPoint = 0;
 
+    console.log(`[PathFinding][Optimize] 最適化開始 - パス長: ${path.length}`);
+
     while (currentPoint < path.length - 1) {
       let nextPoint = currentPoint + 1;
 
       // 現在の点から直接見通せる最も遠い点を探す
       for (let i = path.length - 1; i > currentPoint; i--) {
+        console.log(
+          `[PathFinding][Optimize] 点${currentPoint}(${path[currentPoint].x.toFixed(1)},${path[currentPoint].z.toFixed(1)})から点${i}(${path[i].x.toFixed(1)},${path[i].z.toFixed(1)})の視線をチェック`,
+        );
         if (this.hasDirectLineOfSight(path[currentPoint], path[i])) {
           nextPoint = i;
+          console.log(
+            `[PathFinding][Optimize] 視線OK - 次のポイントを${nextPoint}に設定`,
+          );
           break;
+        } else {
+          console.log(
+            `[PathFinding][Optimize] 視線NG - さらに近いポイントを確認`,
+          );
         }
       }
 
       currentPoint = nextPoint;
       optimizedPath.push(path[currentPoint]);
+      console.log(
+        `[PathFinding][Optimize] 最適化パスに点${currentPoint}を追加 (${path[currentPoint].x.toFixed(1)},${path[currentPoint].z.toFixed(1)})`,
+      );
     }
 
+    console.log(
+      `[PathFinding][Optimize] 最適化完了 - 元のパス: ${path.length}点, 最適化後: ${optimizedPath.length}点`,
+    );
     return optimizedPath;
   }
 
@@ -596,7 +662,9 @@ export class PathFindingSystem {
       Math.ceil(distance / (this.navMesh['nodeSize'] * 0.5)),
     ); // チェック解像度を上げる (ノードサイズの半分ごと)
     const direction = new THREE.Vector3().subVectors(end, start).normalize();
-    // console.log(`[LoS] Checking from (${start.x.toFixed(1)}, ${start.z.toFixed(1)}) to (${end.x.toFixed(1)}, ${end.z.toFixed(1)}), Steps: ${steps}`); // ログ追加 (詳細すぎる可能性あり)
+    console.log(
+      `[PathFinding][LoS] チェック: (${start.x.toFixed(1)}, ${start.z.toFixed(1)}) から (${end.x.toFixed(1)}, ${end.z.toFixed(1)}), 分割数: ${steps}`,
+    );
 
     for (let i = 1; i < steps; i++) {
       const t = i / steps;
@@ -605,12 +673,20 @@ export class PathFindingSystem {
       const gridPos = this.navMesh.worldToGrid(checkPoint.x, checkPoint.z);
       const node = this.navMesh.getNode(gridPos.x, gridPos.y);
 
+      console.log(
+        `[PathFinding][LoS] ステップ ${i}/${steps}, 点 (${checkPoint.x.toFixed(1)}, ${checkPoint.z.toFixed(1)}), グリッド (${gridPos.x},${gridPos.y}), 通行可能: ${node?.isWalkable}`,
+      );
+
       if (!node || !node.isWalkable) {
-        // console.log(`[LoS] Blocked at step ${i}/${steps}, point (${checkPoint.x.toFixed(1)}, ${checkPoint.z.toFixed(1)}), grid (${gridPos.x},${gridPos.y}), node walkable: ${node?.isWalkable}`); // ログ追加
+        console.log(
+          `[PathFinding][LoS] ブロックされました! ステップ ${i}/${steps}, 点 (${checkPoint.x.toFixed(1)}, ${checkPoint.z.toFixed(1)}), グリッド (${gridPos.x},${gridPos.y}), 通行可能: ${node?.isWalkable}`,
+        );
         return false;
       }
     }
-    // console.log(`[LoS] Path clear from (${start.x.toFixed(1)}, ${start.z.toFixed(1)}) to (${end.x.toFixed(1)}, ${end.z.toFixed(1)})`); // ログ追加
+    console.log(
+      `[PathFinding][LoS] パスは通過可能: (${start.x.toFixed(1)}, ${start.z.toFixed(1)}) から (${end.x.toFixed(1)}, ${end.z.toFixed(1)})`,
+    );
     return true;
   }
 
