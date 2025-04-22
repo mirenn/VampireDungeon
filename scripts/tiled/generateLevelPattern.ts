@@ -173,6 +173,13 @@ function main() {
     process.exit(1);
   }
 
+  // Tombstone レイヤーを取得
+  const tombstoneLayer = map.layers.find((l) => l.name === 'Tombstone');
+  if (!tombstoneLayer) {
+    console.error('Layer "Tombstone" が見つかりません');
+    process.exit(1);
+  }
+
   const { width, height, data: wallData } = wallLayer;
   // タイル GID != 0 を「Wall」とみなす
   const walls: TilePosition[] = wallData
@@ -184,6 +191,14 @@ function main() {
   // Floor レイヤーのタイルデータを抽出
   const { data: floorData } = floorLayer;
   const floors: TilePosition[] = floorData
+    .map((gid, i) =>
+      gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
+    )
+    .filter(Boolean) as TilePosition[];
+
+  // Tombstone レイヤーのタイルデータを抽出
+  const { data: tombstoneData } = tombstoneLayer;
+  const tombstones: TilePosition[] = tombstoneData
     .map((gid, i) =>
       gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
     )
@@ -209,6 +224,11 @@ function main() {
   // Floor データをエクスポート
   console.log('\nexport const floors = [');
   floors.forEach((f) => console.log(`  { x: ${f.x}, y: ${f.y} },`));
+  console.log('];');
+
+  // Tombstone データをエクスポート
+  console.log('\nexport const tombstones = [');
+  tombstones.forEach((t) => console.log(`  { x: ${t.x}, y: ${t.y} },`));
   console.log('];');
 }
 

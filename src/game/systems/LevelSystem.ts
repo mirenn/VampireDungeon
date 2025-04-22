@@ -1,8 +1,10 @@
 import * as THREE from 'three';
+import { Tombstone } from '../entities/Tombstone';
 // 生成されたレベルパターンファイルをインポート
 import {
   walls as level1Walls,
   floors as level1Floors,
+  tombstones as level1Tombstones,
 } from './LevelPatterns1-1'; // floors をインポート
 
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
@@ -13,17 +15,19 @@ interface TilePosition {
 
 interface MapPattern {
   walls: { x: number; y: number; width: number; height: number }[];
-  floors: TilePosition[]; // floors プロパティを追加
+  floors: TilePosition[];
   stairs: { x: number; y: number; toLevel: number };
   playerSpawn?: { x: number; y: number };
+  tombstones?: TilePosition[]; // 追加
 }
 
 const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
   1: {
     walls: level1Walls,
-    floors: level1Floors, // level1Floors を設定
+    floors: level1Floors,
     stairs: { x: 45, y: 45, toLevel: 2 },
     playerSpawn: { x: 10, y: 10 },
+    tombstones: level1Tombstones, // 追加
   },
   2: {
     // TODO: Level 2 の floors データを生成・インポートする
@@ -79,6 +83,10 @@ export class LevelSystem {
   private stairs?: THREE.Mesh;
   private wallMaterial: THREE.Material;
   private stairsMaterial: THREE.Material;
+  private tombstones: Tombstone[] = [];
+
+  // 墓石破壊時のナビメッシュ更新用コールバック
+  public onTombstoneDestroyed?: (x: number, y: number) => void;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -124,6 +132,29 @@ export class LevelSystem {
     this.stairs = new THREE.Mesh(stairsGeometry, this.stairsMaterial);
     this.stairs.position.set(pattern.stairs.x, 0.25, pattern.stairs.y);
     this.scene.add(this.stairs);
+
+    // 墓石の生成
+    this.tombstones = [];
+    if (pattern.tombstones) {
+      pattern.tombstones.forEach((pos) => {
+        const tombstone = new Tombstone(pos.x, pos.y);
+        this.tombstones.push(tombstone);
+        // 3Dモデルの生成・シーンへの追加（仮の見た目: Box）
+        const geometry = new THREE.BoxGeometry(1, 1.5, 1);
+        const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(pos.x + 0.5, 0.75, pos.y + 0.5);
+        mesh.name = 'tombstone';
+        tombstone.mesh = mesh;
+        this.scene.add(mesh);
+        // 墓石破壊時のコールバックを設定
+        tombstone.onDestroyed = () => {
+          if (this.onTombstoneDestroyed) {
+            this.onTombstoneDestroyed(tombstone.x, tombstone.y);
+          }
+        };
+      });
+    }
   }
 
   private clearLevel(): void {
@@ -143,6 +174,15 @@ export class LevelSystem {
       this.stairs.geometry.dispose();
       this.stairs = undefined;
     }
+
+    // 墓石の削除
+    this.tombstones.forEach((tombstone) => {
+      if (tombstone.mesh) {
+        this.scene.remove(tombstone.mesh);
+        tombstone.mesh.geometry?.dispose();
+      }
+    });
+    this.tombstones = [];
   }
 
   public checkWallCollision(boundingBox: THREE.Box3): boolean {
@@ -208,6 +248,11 @@ export class LevelSystem {
   // 床タイルの座標リストを取得
   public getFloorTiles(): TilePosition[] {
     return this.floorTiles;
+  }
+
+  // 墓石リスト取得用メソッド
+  public getTombstones(): Tombstone[] {
+    return this.tombstones;
   }
 
   public dispose(): void {

@@ -346,7 +346,15 @@ export class PlayerSystem {
         }
 
         // スキル実行
-        this.player.executeSkill(skillId, direction, getEnemiesFunction);
+        const getTombstonesFunction = this.levelSystem
+          ? () => this.levelSystem.getTombstones()
+          : undefined;
+        this.player.executeSkill(
+          skillId,
+          direction,
+          getEnemiesFunction,
+          getTombstonesFunction,
+        );
       }
     }
   }
