@@ -293,6 +293,60 @@ export class Player {
     if (this.health < 0) {
       this.health = 0;
     }
+    this.showDamageEffect(); // ダメージエフェクトを表示
+  }
+
+  // ダメージエフェクトを表示する
+  private showDamageEffect(): void {
+    // 星型（スパイク状）のShapeを作成
+    const spikes = 8;
+    const outerRadius = 1.1;
+    const innerRadius = 0.45;
+    const shape = new THREE.Shape();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i / (spikes * 2)) * Math.PI * 2;
+      const r = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      if (i === 0) {
+        shape.moveTo(x, y);
+      } else {
+        shape.lineTo(x, y);
+      }
+    }
+    shape.closePath();
+
+    // 薄い厚みを持たせる
+    const extrudeSettings = { depth: 0.08, bevelEnabled: false };
+    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff2222,
+      transparent: true,
+      opacity: 0.7,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(0, 1.7, 0); // 頭上
+    mesh.rotation.x = -Math.PI / 2; // 上向き
+    this.mesh.add(mesh);
+
+    let elapsed = 0;
+    const duration = 350; // ミリ秒
+    const animate = (timestamp: number) => {
+      if (!mesh.userData.start) mesh.userData.start = timestamp;
+      elapsed = timestamp - mesh.userData.start;
+      // 徐々に透明に
+      material.opacity = 0.7 * (1 - elapsed / duration);
+      mesh.scale.setScalar(1 + 0.2 * (elapsed / duration)); // 少し拡大
+      if (elapsed < duration) {
+        requestAnimationFrame(animate);
+      } else {
+        this.mesh.remove(mesh);
+        geometry.dispose();
+        material.dispose();
+      }
+    };
+    requestAnimationFrame(animate);
   }
 
   // 回復する
