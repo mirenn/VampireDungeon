@@ -347,7 +347,7 @@ export class PlayerSystem {
 
         // スキル実行
         const getTombstonesFunction = this.levelSystem
-          ? () => this.levelSystem.getTombstones()
+          ? () => this.levelSystem!.getTombstones() // Add non-null assertion
           : undefined;
         this.player.executeSkill(
           skillId,
