@@ -30,7 +30,7 @@ export class JellySlime extends Enemy {
     this.health = this.splitLevel === 0 ? 20 : 10; // 分裂後は体力を半分に
     this.maxHealth = this.health;
     this.damage = this.splitLevel === 0 ? 4 : 2; // 分裂後はダメージを半分に
-    this.speed = this.splitLevel === 0 ? 1.5 : 2; // 分裂後は少し速く
+    this.speed = this.splitLevel === 0 ? 3 : 4.5; // 分裂後は少し速く
     this.experienceValue = this.splitLevel === 0 ? 15 : 5; // 分裂後は経験値を少なく
 
     // メッシュをジェリー・スライム用に変更
