@@ -74,6 +74,8 @@ export class GameManager {
 
     // パスファインディングシステムの初期化（LevelSystemに依存）
     this.pathFindingSystem = new PathFindingSystem(this.levelSystem);
+    // EnemySystemにPathFindingSystemをセット
+    this.enemySystem.setPathFindingSystem(this.pathFindingSystem);
 
     // イベントリスナーの設定
     window.addEventListener('resize', this.onWindowResize.bind(this));

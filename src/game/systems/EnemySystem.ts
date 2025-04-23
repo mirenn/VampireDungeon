@@ -3,6 +3,7 @@ import { Enemy } from '../entities/Enemy';
 import { JellySlime } from '../entities/JellySlime';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
+import { PathFindingSystem } from './PathFindingSystem';
 
 interface EnemySpawnPattern {
   count: number;
@@ -49,9 +50,20 @@ export class EnemySystem {
   private scene: THREE.Scene;
   private showDetectionRanges: boolean = false;
   private raycaster: THREE.Raycaster = new THREE.Raycaster(); // 視線判定用
+  private pathFindingSystem: PathFindingSystem | null = null;
+
+  // 敵ごとのパス・インデックス管理用
+  private enemyPathMap = new WeakMap<
+    Enemy,
+    { path: THREE.Vector3[]; index: number }
+  >();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+  }
+
+  public setPathFindingSystem(pathFindingSystem: PathFindingSystem) {
+    this.pathFindingSystem = pathFindingSystem;
   }
 
   public init(): void {
@@ -68,40 +80,75 @@ export class EnemySystem {
   }
 
   public update(deltaTime: number): void {
-    // 各敵の更新処理
     this.enemies.forEach((enemy) => {
-      if (enemy instanceof JellySlime && this.player) {
-        // ジェリー・スライムはジャンプ攻撃AI用にplayer情報を渡す
-        enemy.update(deltaTime, this.player.getPosition(), this.player);
-      } else {
-        enemy.update(deltaTime);
-      }
-
       if (this.player) {
-        // プレイヤーとの距離をチェック
         const playerPosition = this.player.getPosition();
         const enemyPosition = enemy.getPosition();
         const distance = playerPosition.distanceTo(enemyPosition);
 
         // 検知範囲内かつ壁による遮蔽がない場合のみプレイヤーを追跡
         if (distance <= enemy.detectionRange) {
-          // 壁による遮蔽チェック
           if (this.hasLineOfSight(enemyPosition, playerPosition)) {
             enemy.isPlayerDetected = true;
-            enemy.moveTowards(playerPosition, deltaTime);
+            // パスファインディング移動
+            if (this.pathFindingSystem) {
+              let pathInfo = this.enemyPathMap.get(enemy);
+              // パスが無い、または目標が大きく変わったら再計算
+              const needRecalc =
+                !pathInfo ||
+                pathInfo.path.length === 0 ||
+                pathInfo.index >= pathInfo.path.length ||
+                pathInfo.path[pathInfo.path.length - 1].distanceTo(
+                  playerPosition,
+                ) > 1.0;
+              if (needRecalc) {
+                const newPath = this.pathFindingSystem.findPath(
+                  enemyPosition,
+                  playerPosition,
+                );
+                this.enemyPathMap.set(enemy, { path: newPath, index: 0 });
+                pathInfo = this.enemyPathMap.get(enemy)!;
+              }
+              // パスに沿って移動
+              if (
+                pathInfo &&
+                pathInfo.path.length > 1 &&
+                pathInfo.index < pathInfo.path.length
+              ) {
+                // 次の目標点
+                const nextTarget = pathInfo.path[pathInfo.index];
+                // 目標点に近づいたら次へ
+                if (enemy.mesh.position.distanceTo(nextTarget) < 0.2) {
+                  pathInfo.index++;
+                  if (pathInfo.index >= pathInfo.path.length) return;
+                }
+                // 実際の移動
+                enemy.moveTowards(pathInfo.path[pathInfo.index], deltaTime);
+              }
+            } else {
+              // パスファインディングが無い場合は従来通り
+              enemy.moveTowards(playerPosition, deltaTime);
+            }
           } else {
             enemy.isPlayerDetected = false;
+            this.enemyPathMap.delete(enemy);
           }
         } else {
           enemy.isPlayerDetected = false;
+          this.enemyPathMap.delete(enemy);
         }
-
         // 検知範囲の表示状態を更新
         if (this.showDetectionRanges) {
           enemy.addDetectionRangeToScene(this.scene);
         } else {
           enemy.removeDetectionRangeFromScene(this.scene);
         }
+      }
+      // 通常のupdate（HPバーやクールダウンなど）
+      if (enemy instanceof JellySlime && this.player) {
+        enemy.update(deltaTime, this.player.getPosition(), this.player);
+      } else {
+        enemy.update(deltaTime);
       }
     });
   }
