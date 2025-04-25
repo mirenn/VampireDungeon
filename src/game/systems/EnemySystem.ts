@@ -80,6 +80,7 @@ export class EnemySystem {
   }
 
   public update(deltaTime: number): void {
+    // 敵の移動と状態更新を行う
     this.enemies.forEach((enemy) => {
       if (this.player) {
         const playerPosition = this.player.getPosition();
@@ -151,6 +152,9 @@ export class EnemySystem {
         enemy.update(deltaTime);
       }
     });
+
+    // 敵同士の衝突判定と回避処理
+    this.handleEnemyCollisions(deltaTime);
   }
 
   public spawnEnemiesForLevel(level: number): void {
@@ -316,5 +320,57 @@ export class EnemySystem {
 
     // レイキャスター関連のクリーンアップ (必要に応じて)
     this.raycaster = new THREE.Raycaster();
+  }
+
+  // 敵同士の衝突判定と回避処理
+  private handleEnemyCollisions(deltaTime: number): void {
+    // 敵の数が1以下の場合は処理不要
+    if (this.enemies.length <= 1) return;
+
+    const separationForce = 2.0; // 反発力の強さ
+    const minDistance = 1.5; // 最小許容距離
+
+    // 総当たりで敵同士の距離をチェック
+    for (let i = 0; i < this.enemies.length; i++) {
+      const enemy1 = this.enemies[i];
+      const pos1 = enemy1.getPosition();
+
+      for (let j = i + 1; j < this.enemies.length; j++) {
+        const enemy2 = this.enemies[j];
+        const pos2 = enemy2.getPosition();
+
+        // 2つの敵の距離を計算
+        const distance = pos1.distanceTo(pos2);
+
+        // 最小許容距離より近い場合、お互いを離す
+        if (distance < minDistance) {
+          // 反発ベクトルを計算（enemy2 から enemy1 への方向）
+          const repulsionDir = new THREE.Vector3()
+            .subVectors(pos1, pos2)
+            .normalize();
+
+          // 距離に基づいて反発力を調整（近いほど強く反発）
+          const repulsionStrength =
+            ((minDistance - distance) / minDistance) * separationForce;
+
+          // 反発ベクトルに強さを掛ける
+          const repulsion = repulsionDir.multiplyScalar(
+            repulsionStrength * deltaTime,
+          );
+
+          // 両方の敵を反対方向に移動させる
+          enemy1.mesh.position.add(repulsion);
+          enemy2.mesh.position.sub(repulsion);
+
+          // バウンディングボックスの更新
+          const box1 = new THREE.Box3().setFromObject(enemy1.mesh);
+          const box2 = new THREE.Box3().setFromObject(enemy2.mesh);
+          box1.expandByScalar(0.2);
+          box2.expandByScalar(0.2);
+          enemy1.mesh.userData.boundingBox = box1;
+          enemy2.mesh.userData.boundingBox = box2;
+        }
+      }
+    }
   }
 }
