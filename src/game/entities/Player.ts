@@ -568,4 +568,17 @@ export class Player {
   public getPathFindingSystem(): PathFindingSystem | null {
     return this.pathFindingSystem;
   }
+
+  // スキルのクールダウンを任意秒数だけ短縮するメソッド
+  public reduceSkillCooldown(skillId: string, seconds: number): void {
+    if (this.skillCooldowns[skillId] !== undefined) {
+      this.skillCooldowns[skillId] = Math.max(
+        0,
+        this.skillCooldowns[skillId] - seconds,
+      );
+      // UI更新も即時反映
+      this.updateUISkillCooldowns();
+      console.log(`スキル ${skillId} のクールダウンを${seconds}秒短縮しました`);
+    }
+  }
 }

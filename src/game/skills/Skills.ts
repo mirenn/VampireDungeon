@@ -532,6 +532,8 @@ export class Skills {
                     tombstone.mesh.material.dispose();
                   }
                 }
+                // 墓石を破壊したらクールダウンを3秒短縮
+                player.reduceSkillCooldown('dashSlash', 4.5);
                 // 墓石に当たったら止まる
                 obstacleHit = true;
                 break;
@@ -596,7 +598,7 @@ export const SkillDatabase: { [key: string]: Skill } = {
   dashSlash: {
     id: 'dashSlash',
     name: 'ダッシュ切り',
-    cooldown: 8,
+    cooldown: 7,
     manaCost: 20,
     execute: Skills.dashSlash,
   },
