@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { Skill, SkillDatabase } from '../skills/Skills';
+import type { SkillName } from '../skills/Skills';
 import { PathFindingSystem } from '../systems/PathFindingSystem'; // PathFindingSystemをインポート
+
+// SkillName型かどうかを判定する型ガード関数
+function isSkillName(skillId: string): skillId is SkillName {
+  return ['magicOrb', 'dashSlash'].includes(skillId);
+}
 
 export class Player {
   public mesh: THREE.Object3D;
@@ -20,11 +26,11 @@ export class Player {
   private targetDirection: THREE.Vector3 | null = null;
   private nextWaypoint: THREE.Vector3 | null = null;
   private attackCooldown: number = 0;
-  private skills: string[] = ['magicOrb', 'dashSlash']; // 初期スキルを「魔法のオーブ」に変更
+  private skills: SkillName[] = ['magicOrb', 'dashSlash']; // SkillName型を利用
   private skillCooldowns: { [key: string]: number } = {}; // スキルごとのクールダウン
   private items: string[] = [];
   // キーバインドとスキルの対応関係を管理
-  private keyBindings: { [key: string]: string } = {
+  private keyBindings: { [key: string]: SkillName | '' } = {
     Q: 'magicOrb', // 「魔法のオーブ」をQキーにバインド
     W: 'dashSlash',
     E: '',
@@ -225,8 +231,8 @@ export class Player {
 
   // スキルの使用条件チェック＆消費処理（旧: useSkill）
   public tryConsumeSkill(skillId: string): boolean {
-    if (!this.skills.includes(skillId)) {
-      return false; // スキルを所持していない
+    if (!isSkillName(skillId) || !this.skills.includes(skillId)) {
+      return false; // スキルを所持していない or 不正なスキル名
     }
 
     const cooldown = this.skillCooldowns[skillId] || 0;
@@ -373,7 +379,7 @@ export class Player {
 
   // スキルを追加
   public addSkill(skillId: string): void {
-    if (!this.skills.includes(skillId)) {
+    if (isSkillName(skillId) && !this.skills.includes(skillId)) {
       this.skills.push(skillId);
       this.skillCooldowns[skillId] = 0; // クールダウンを初期化
     }
@@ -381,7 +387,7 @@ export class Player {
 
   // スキルを所持しているか確認
   public hasSkill(skillId: string): boolean {
-    return this.skills.includes(skillId);
+    return isSkillName(skillId) && this.skills.includes(skillId);
   }
 
   // スキルのクールダウン状態を取得
@@ -433,12 +439,12 @@ export class Player {
     }
 
     // スキルを所持しているか確認
-    if (skillId && !this.skills.includes(skillId)) {
+    if (skillId && !this.skills.includes(skillId as SkillName)) {
       return false;
     }
 
     // キーバインドを更新
-    this.keyBindings[key] = skillId;
+    this.keyBindings[key] = isSkillName(skillId) ? skillId : '';
     return true;
   }
 

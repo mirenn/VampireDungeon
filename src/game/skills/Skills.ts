@@ -17,6 +17,9 @@ export interface Skill {
   ) => void;
 }
 
+// スキル名のリテラル型
+export type SkillName = 'magicOrb' | 'dashSlash'; // 新しいスキルを追加したらここも拡張
+
 // スキルの実装を集約するクラス
 export class Skills {
   // 魔法のオーブ (旧basicAttack)
