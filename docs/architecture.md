@@ -569,15 +569,15 @@ export class SkillManager {
 
 ```mermaid
 graph TD
-    A[キー入力 (Q/W/E/R)] --> B[PlayerSystem: 入力検知]
-    B --> C[SkillManager: executeSkillByKey]
-    C --> D[Player: getBoundSkillId]
-    D --> E[Player: canUseSkill]
-    E --> |OK| F[SkillDatabase: getSkill.execute]
-    E --> |NG| G[実行失敗 (UIフィードバック)]
-    F --> H[Player: useSkill]
-    H --> I[エフェクト表示/効果適用]
-    I --> J[クールダウン開始]
+    A["キー入力 (Q/W/E/R)"] --> B[PlayerSystem: 入力検知]
+    B --> C["SkillManager.executeSkillByKey(key, ...)"]
+    C --> D["Player.getSkillForKey(key) -> skillId"]
+    D -- skillId --> E["SkillManager.getSkill(skillId) -> skill"]
+    E -- skill --> F["Player.canUseSkill(skillId) (マナ/CDチェック)"]
+    F -- OK --> G["SkillDatabase[skillId].execute(player, ...)"]
+    F -- NG --> H["実行失敗 (UIフィードバック)"]
+    G --> I["Player.useSkill(skillId) (マナ消費/CD開始)"]
+    I --> J[エフェクト表示/効果適用]
 ```
 
 #### サンプルコード (PlayerSystem内での呼び出し例)
