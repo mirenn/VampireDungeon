@@ -146,7 +146,7 @@ export class NavMesh {
 
 // パスファインディングシステム
 export class PathFindingSystem {
-  private navMesh: NavMesh | null = null;
+  public navMesh: NavMesh | null = null; // privateからpublicに変更
   private levelSystem: LevelSystem;
   private lastPathfindingSuccess: boolean = true;
 

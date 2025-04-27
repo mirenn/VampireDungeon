@@ -190,6 +190,8 @@ export class GameManager {
       this.enemySystem.setLevelSystem(this.levelSystem);
       // パスファインディングシステムの参照を設定
       this.playerSystem.setPathFindingSystem(this.pathFindingSystem);
+      // ここに追加: プレイヤー自身がPathFindingSystemを保持できるようにする
+      player.setPathFindingSystem(this.pathFindingSystem);
 
       // EnemySystemの参照をPlayerSystemに設定
       this.playerSystem.setEnemySystem(this.enemySystem);

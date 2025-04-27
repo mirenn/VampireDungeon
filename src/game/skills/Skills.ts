@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Player } from '../entities/Player';
+import { PathFindingSystem } from '../systems/PathFindingSystem';
 
 // スキルインターフェースを定義
 export interface Skill {
@@ -11,7 +12,8 @@ export interface Skill {
     player: Player,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
-    getTombstones?: () => any[], // 追加
+    getTombstones?: () => any[],
+    pathFindingSystem?: PathFindingSystem, // nullを許容せずundefinedのみ
   ) => void;
 }
 
@@ -22,7 +24,7 @@ export class Skills {
     player: Player,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
-    getTombstones?: () => any[], // 追加
+    getTombstones?: () => any[],
   ): void {
     Skills.createMagicOrbEffect(player, direction, getEnemies, getTombstones);
   }
@@ -32,7 +34,7 @@ export class Skills {
     player: Player,
     customDirection?: THREE.Vector3,
     getEnemies?: () => any[],
-    getTombstones?: () => any[], // 追加
+    getTombstones?: () => any[],
   ): void {
     // 攻撃エフェクト（球）を作成
     const attackEffect = new THREE.Mesh(
@@ -316,6 +318,265 @@ export class Skills {
     requestAnimationFrame(animate);
   }
 
+  // ダッシュ切りスキルの実装
+  static dashSlash(
+    player: Player,
+    direction?: THREE.Vector3,
+    getEnemies?: () => any[],
+    getTombstones?: () => any[],
+    pathFindingSystem?: PathFindingSystem, // PathFindingSystemを追加
+  ): void {
+    // 方向の設定
+    const dashDirection = direction
+      ? direction.clone().normalize()
+      : player.direction.clone().normalize();
+
+    // 開始位置を保存
+    const startPosition = player.mesh.position.clone();
+
+    // ダッシュ距離の設定（15メートル）
+    const maxDashDistance = 15;
+
+    // ダメージを与えた敵を追跡
+    const hitEnemies = new Set<any>();
+
+    // 倒した敵を追跡（クールダウンリセット用）
+    const killedEnemies = new Set<any>();
+
+    // 斬撃エフェクトを作成
+    const slashEffect = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 0.5),
+      new THREE.MeshBasicMaterial({
+        color: 0x3366ff,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+      }),
+    );
+    slashEffect.name = 'slashEffect';
+
+    // エフェクトの位置を設定
+    slashEffect.position.copy(startPosition).add(new THREE.Vector3(0, 1, 0));
+    slashEffect.lookAt(startPosition.clone().add(dashDirection));
+    slashEffect.rotateX(Math.PI / 2); // 刀のような平面に調整
+
+    // シーンに追加
+    player.mesh.parent?.add(slashEffect);
+
+    // 軌跡を残すために線を描画
+    const trailGeometry = new THREE.BufferGeometry();
+    const trailMaterial = new THREE.LineBasicMaterial({
+      color: 0x3366ff,
+      transparent: true,
+      opacity: 0.5,
+    });
+
+    const trailPoints = [
+      startPosition.clone().add(new THREE.Vector3(0, 1, 0)),
+      startPosition.clone().add(new THREE.Vector3(0, 1, 0)),
+    ];
+    trailGeometry.setFromPoints(trailPoints);
+
+    const trail = new THREE.Line(trailGeometry, trailMaterial);
+    player.mesh.parent?.add(trail);
+
+    // ダッシュアニメーションのパラメータ
+    let dashDistance = 0;
+    const dashSpeed = 30; // 高速移動
+    let lastTimestamp = performance.now();
+    let isDashing = true;
+    let obstacleHit = false;
+
+    // アニメーション関数
+    const animate = (timestamp: number) => {
+      // 経過時間の計算
+      const deltaTime = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+      lastTimestamp = timestamp;
+
+      if (isDashing) {
+        // 移動距離の計算
+        const moveDelta = dashSpeed * deltaTime;
+
+        // 壁判定: 次のフレームでの移動先の位置を計算
+        const nextPosition = player.mesh.position
+          .clone()
+          .addScaledVector(dashDirection, moveDelta);
+
+        // ナビメッシュを使って壁判定を行う
+        let wallHit = false;
+        if (pathFindingSystem && pathFindingSystem.navMesh) {
+          // 次の位置のグリッド座標を取得
+          const nextGrid = pathFindingSystem.navMesh.worldToGrid(
+            nextPosition.x,
+            nextPosition.z,
+          );
+          // そのグリッドのノードを取得
+          const nextNode = pathFindingSystem.navMesh.getNode(
+            nextGrid.x,
+            nextGrid.y,
+          );
+
+          // ノードが存在しないか、歩行不可能な場合は壁と判定
+          if (!nextNode || !nextNode.isWalkable) {
+            console.log(
+              `ダッシュ切りが壁に衝突！ 位置: (${nextGrid.x}, ${nextGrid.y})`,
+            );
+            wallHit = true;
+            obstacleHit = true;
+          }
+        }
+
+        // 最大距離か障害物に当たるまでダッシュ
+        if (dashDistance < maxDashDistance && !obstacleHit && !wallHit) {
+          // プレイヤーを移動
+          dashDistance += moveDelta;
+          player.mesh.position.addScaledVector(dashDirection, moveDelta);
+
+          // スラッシュエフェクトの位置を更新
+          slashEffect.position
+            .copy(player.mesh.position)
+            .add(new THREE.Vector3(0, 1, 0));
+
+          // 軌跡の更新
+          trailPoints[1]
+            .copy(player.mesh.position)
+            .add(new THREE.Vector3(0, 1, 0));
+          trailGeometry.setFromPoints(trailPoints);
+
+          // 敵との衝突チェック
+          if (getEnemies) {
+            const enemies = getEnemies();
+            for (const enemy of enemies) {
+              // すでにヒットした敵はスキップ
+              if (hitEnemies.has(enemy)) continue;
+
+              // プレイヤーと敵の衝突判定用のバウンディングボックスを作成
+              const playerBox = new THREE.Box3().setFromObject(player.mesh);
+              playerBox.expandByScalar(0.5); // 判定を少し大きく
+
+              let collision = false;
+
+              // 敵の衝突チェック関数があればそれを使用
+              if (typeof enemy.checkCollision === 'function') {
+                collision = enemy.checkCollision(playerBox);
+              } else {
+                // 通常の衝突判定
+                const enemyBox =
+                  enemy.mesh.userData.boundingBox ||
+                  new THREE.Box3().setFromObject(enemy.mesh);
+                collision = playerBox.intersectsBox(enemyBox);
+
+                // 距離判定も追加
+                if (!collision) {
+                  const playerCenter = new THREE.Vector3();
+                  playerBox.getCenter(playerCenter);
+
+                  const enemyCenter = new THREE.Vector3();
+                  enemyBox.getCenter(enemyCenter);
+
+                  const distance = playerCenter.distanceTo(enemyCenter);
+                  collision = distance < 2.0; // 適切な距離で判定
+                }
+              }
+
+              // 衝突した場合
+              if (collision) {
+                console.log(`ダッシュ切りが${enemy.mesh.name || '敵'}に命中!`);
+
+                // 敵の現在HPを記録
+                const prevHealth = enemy.health;
+
+                // ダメージを与える（15ダメージ固定）
+                enemy.takeDamage(15);
+
+                if (typeof enemy.updateHPBar === 'function') {
+                  enemy.updateHPBar();
+                }
+
+                // ヒット敵として記録
+                hitEnemies.add(enemy);
+
+                // 敵を倒した場合、クールダウンリセット
+                if (prevHealth > 0 && enemy.health <= 0) {
+                  console.log(`敵を倒した! クールダウンをリセット`);
+                  killedEnemies.add(enemy);
+
+                  // プレイヤーのクールダウンを直接リセット
+                  player.resetSkillCooldown('dashSlash');
+                }
+              }
+            }
+          }
+
+          // 墓石との衝突チェック
+          if (getTombstones) {
+            const tombstones = getTombstones();
+            for (const tombstone of tombstones) {
+              if (tombstone.isDestroyed) continue;
+
+              if (
+                typeof tombstone.checkCollision === 'function' &&
+                tombstone.checkCollision(
+                  new THREE.Box3().setFromObject(player.mesh),
+                )
+              ) {
+                tombstone.destroy();
+                // 墓石の見た目を消す
+                if (tombstone.mesh && tombstone.mesh.parent) {
+                  tombstone.mesh.parent.remove(tombstone.mesh);
+                  tombstone.mesh.geometry?.dispose();
+                  if (tombstone.mesh.material?.dispose) {
+                    tombstone.mesh.material.dispose();
+                  }
+                }
+                // 墓石に当たったら止まる
+                obstacleHit = true;
+                break;
+              }
+            }
+          }
+        } else {
+          // ダッシュ終了
+          isDashing = false;
+        }
+      } else {
+        // ダッシュ後のエフェクト消去
+        const opacityDecay = deltaTime * 5; // 徐々に消える速度
+
+        // エフェクトの不透明度を下げる
+        const slashMaterial = slashEffect.material as THREE.MeshBasicMaterial;
+        slashMaterial.opacity -= opacityDecay;
+
+        trailMaterial.opacity -= opacityDecay;
+
+        // 不透明度がほぼ0になったらエフェクトを削除
+        if (slashMaterial.opacity <= 0.05) {
+          // エフェクトを削除
+          if (slashEffect.parent) {
+            slashEffect.parent.remove(slashEffect);
+            slashEffect.geometry.dispose();
+            slashMaterial.dispose();
+          }
+
+          if (trail.parent) {
+            trail.parent.remove(trail);
+            trail.geometry.dispose();
+            trailMaterial.dispose();
+          }
+
+          // アニメーションを終了
+          return;
+        }
+      }
+
+      // 次のフレームのアニメーション
+      requestAnimationFrame(animate);
+    };
+
+    // アニメーションを開始
+    requestAnimationFrame(animate);
+  }
+
   // 他のスキル実装はここに追加していく
   // ...
 }
@@ -328,6 +589,13 @@ export const SkillDatabase: { [key: string]: Skill } = {
     cooldown: 6,
     manaCost: 15, // マナコストを設定
     execute: Skills.magicOrb,
+  },
+  dashSlash: {
+    id: 'dashSlash',
+    name: 'ダッシュ切り',
+    cooldown: 8,
+    manaCost: 20,
+    execute: Skills.dashSlash,
   },
   // 他のスキルをここに追加していく
 };

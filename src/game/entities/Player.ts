@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Skill, SkillDatabase } from '../skills/Skills';
+import { PathFindingSystem } from '../systems/PathFindingSystem'; // PathFindingSystemをインポート
 
 export class Player {
   public mesh: THREE.Object3D;
@@ -19,13 +20,13 @@ export class Player {
   private targetDirection: THREE.Vector3 | null = null;
   private nextWaypoint: THREE.Vector3 | null = null;
   private attackCooldown: number = 0;
-  private skills: string[] = ['magicOrb']; // 初期スキルを「魔法のオーブ」に変更
+  private skills: string[] = ['magicOrb', 'dashSlash']; // 初期スキルを「魔法のオーブ」に変更
   private skillCooldowns: { [key: string]: number } = {}; // スキルごとのクールダウン
   private items: string[] = [];
   // キーバインドとスキルの対応関係を管理
   private keyBindings: { [key: string]: string } = {
     Q: 'magicOrb', // 「魔法のオーブ」をQキーにバインド
-    W: '',
+    W: 'dashSlash',
     E: '',
     R: '',
   };
@@ -33,6 +34,9 @@ export class Player {
   private skillMaxCooldowns: { [key: string]: number } = {
     magicOrb: 7, // 1秒から7秒に変更
   };
+
+  // PathFindingSystemへの参照を保持するプロパティ
+  private pathFindingSystem: PathFindingSystem | null = null;
 
   constructor() {
     // プレイヤーのメッシュを作成
@@ -261,12 +265,15 @@ export class Player {
     skillId: string,
     direction?: THREE.Vector3,
     getEnemies?: () => any[],
-    getTombstones?: () => any[], // 追加
+    getTombstones?: () => any[],
   ): boolean {
     if (this.tryConsumeSkill(skillId)) {
       const skill = SkillDatabase[skillId];
       if (skill) {
-        skill.execute(this, direction, getEnemies, getTombstones);
+        // nullをundefinedに変換して渡す
+        const pathFinding =
+          this.pathFindingSystem === null ? undefined : this.pathFindingSystem;
+        skill.execute(this, direction, getEnemies, getTombstones, pathFinding);
         return true;
       }
     }
@@ -391,6 +398,15 @@ export class Player {
         return 1; // デフォルトのクールダウン時間
     }
   }
+
+  // スキルのクールダウンをリセットするメソッド
+  public resetSkillCooldown(skillId: string): void {
+    if (this.skillCooldowns[skillId] !== undefined) {
+      this.skillCooldowns[skillId] = 0;
+      console.log(`スキル ${skillId} のクールダウンがリセットされました`);
+    }
+  }
+
   // すべての所持スキルを取得
   public getSkills(): string[] {
     return [...this.skills];
@@ -534,5 +550,16 @@ export class Player {
 
     // グローバル変数に設定（UIからアクセスできるようにする）
     (window as any).gamePlayer.skills.cooldowns = cooldowns;
+  }
+
+  // PathFindingSystemを設定するメソッド
+  public setPathFindingSystem(pathFindingSystem: PathFindingSystem): void {
+    this.pathFindingSystem = pathFindingSystem;
+    console.log('Player: PathFindingSystem has been set');
+  }
+
+  // PathFindingSystemを取得するメソッド（スキル実行時に使用）
+  public getPathFindingSystem(): PathFindingSystem | null {
+    return this.pathFindingSystem;
   }
 }
