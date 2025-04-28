@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Enemy } from '../entities/Enemy';
 import { JellySlime } from '../entities/JellySlime';
+import { RustyKnight } from '../entities/RustyKnight';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
 import { PathFindingSystem } from './PathFindingSystem';
@@ -171,7 +172,8 @@ export class EnemySystem {
     pattern.spawnPoints.forEach((point, index) => {
       if (index < pattern.count) {
         // JellySlimeを生成（分裂レベル0 = 元のサイズ）
-        const enemy = new JellySlime(0);
+        //const enemy = new JellySlime(0);
+        const enemy = new RustyKnight(); // RustyKnightを生成
         enemy.mesh.position.set(point.x, 0, point.y);
         this.enemies.push(enemy);
         this.scene.add(enemy.mesh);

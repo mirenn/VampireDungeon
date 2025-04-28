@@ -8,8 +8,8 @@ export class Enemy {
   public speed: number = 3;
   public experienceValue: number = 20;
 
-  private attackCooldown: number = 0;
-  private attackInterval: number = 1; // 1秒ごとに攻撃
+  protected attackCooldown: number = 0;
+  protected attackInterval: number = 1; // 1秒ごとに攻撃
 
   // 視認範囲と状態
   public detectionRange: number = 10; // プレイヤーを視認できる範囲
