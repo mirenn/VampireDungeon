@@ -13,10 +13,10 @@ interface EnemySpawnPattern {
 
 const ENEMY_PATTERNS: { [key: number]: EnemySpawnPattern } = {
   1: {
-    count: 3,
+    count: 1,
     spawnPoints: [
-      { x: 30, y: 30 },
-      { x: 35, y: 15 },
+      // { x: 30, y: 30 },
+      // { x: 35, y: 15 },
       { x: 15, y: 35 },
     ],
   },
@@ -147,8 +147,11 @@ export class EnemySystem {
         }
       }
       // 通常のupdate（HPバーやクールダウンなど）
-      if (enemy instanceof JellySlime && this.player) {
-        enemy.update(deltaTime, this.player.getPosition(), this.player);
+      if (
+        (enemy instanceof JellySlime || enemy instanceof RustyKnight) &&
+        this.player
+      ) {
+        enemy.update(deltaTime, this.player);
       } else {
         enemy.update(deltaTime);
       }

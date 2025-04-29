@@ -310,19 +310,20 @@ export class GameManager {
       const enemyBoundingBox = enemy.mesh.userData.boundingBox as THREE.Box3;
 
       // 1. 敵からプレイヤーへの攻撃（体当たり）
-      if (
-        playerBoundingBox &&
-        enemyBoundingBox &&
-        playerBoundingBox.intersectsBox(enemyBoundingBox)
-      ) {
-        if (enemy.attack()) {
-          console.log(
-            `Player takes ${enemy.damage} damage from ${enemy.mesh.name}`,
-          );
-          player.takeDamage(enemy.damage);
-          (window as any).dispatchEvent(new CustomEvent('playerDamaged')); // UI更新用イベント
-        }
-      } // 2. プレイヤーから敵への攻撃は玉が当たった時に処理するため、このブロックは削除
+      // if (
+      //   playerBoundingBox &&
+      //   enemyBoundingBox &&
+      //   playerBoundingBox.intersectsBox(enemyBoundingBox)
+      // ) {
+      //   if (enemy.attack()) {
+      //     console.log(
+      //       `Player takes ${enemy.damage} damage from ${enemy.mesh.name}`,
+      //     );
+      //     player.takeDamage(enemy.damage);
+      //     (window as any).dispatchEvent(new CustomEvent('playerDamaged')); // UI更新用イベント
+      //   }
+      // }
+      // 2. プレイヤーから敵への攻撃は玉が当たった時に処理するため、このブロックは削除
       // 敵の体力が0以下になったかチェック
       if (enemy.health <= 0) {
         if (!enemiesToRemove.includes(enemy)) {

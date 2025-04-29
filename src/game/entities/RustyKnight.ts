@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './Enemy';
+import { Player } from './Player';
 
 export class RustyKnight extends Enemy {
   private state: 'idle' | 'prepareAttack' | 'attacking' | 'cooldown' = 'idle';
@@ -91,18 +92,43 @@ export class RustyKnight extends Enemy {
     this.mesh.userData.type = 'rustyKnight';
   }
 
-  public update(
-    deltaTime: number,
-    playerPosition?: THREE.Vector3,
-    playerObj?: any,
-  ): void {
+  public update(deltaTime: number, playerObj?: Player | null): void {
+    // console.log('[RustyKnight] update called', {
+    //   state: this.state,
+    //   playerPosition: playerPosition ? playerPosition.toArray() : null,
+    //   selfPosition: this.mesh.position.toArray(),
+    //   attackCooldown: this.attackCooldown,
+    //   distance: playerPosition
+    //     ? this.mesh.position.distanceTo(playerPosition)
+    //     : null,
+    // });
+    const playerPosition = playerObj?.getPosition();
     switch (this.state) {
       case 'idle': {
+        if (!playerPosition) {
+          console.log('[RustyKnight] playerPosition is undefined or null');
+        } else if (this.mesh.position.distanceTo(playerPosition) >= 10) {
+          console.log('[RustyKnight] player is too far', {
+            distance: this.mesh.position.distanceTo(playerPosition),
+          });
+        } else if (this.attackCooldown > 0) {
+          console.log('[RustyKnight] attackCooldown active', {
+            attackCooldown: this.attackCooldown,
+          });
+        }
+        console.log(
+          '[RustyKnight] idle state - attackCooldown:',
+          this.attackCooldown,
+        );
         if (
           playerPosition &&
           this.mesh.position.distanceTo(playerPosition) < 10 &&
           this.attackCooldown <= 0
         ) {
+          console.log('[RustyKnight] Transitioning to prepareAttack', {
+            playerDistance: this.mesh.position.distanceTo(playerPosition),
+            attackCooldown: this.attackCooldown,
+          }); // ← 追加: 条件をログ出力
           this.state = 'prepareAttack';
           this.attackPrepareTimer = 0;
           this.hasAttacked = false;
@@ -126,6 +152,7 @@ export class RustyKnight extends Enemy {
       }
       case 'prepareAttack': {
         this.attackPrepareTimer += deltaTime;
+        console.log('[RustyKnight] State changed to prepareAttack.'); // Log: ステート変更
         // 攻撃範囲Meshを生成・表示（初回のみ）
         if (!this.attackRangeMesh) {
           console.log('[RustyKnight] Creating attackRangeMesh...'); // Log: 生成開始

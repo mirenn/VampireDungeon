@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './Enemy';
+import { Player } from './Player'; // プレイヤーのインポート
 
 export class JellySlime extends Enemy {
   private splitLevel: number = 0; // 0: 分裂前, 1: 分裂後
@@ -64,11 +65,8 @@ export class JellySlime extends Enemy {
     this.mesh.userData.type = 'jellySlime';
   }
 
-  public update(
-    deltaTime: number,
-    playerPosition?: THREE.Vector3,
-    playerObj?: any,
-  ): void {
+  public update(deltaTime: number, playerObj?: Player | null): void {
+    const playerPosition = playerObj?.getPosition();
     switch (this.state) {
       case 'idle': {
         // プレイヤーが近い場合は攻撃準備へ
