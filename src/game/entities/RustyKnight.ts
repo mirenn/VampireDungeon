@@ -8,7 +8,8 @@ export class RustyKnight extends Enemy {
   protected attackInterval: number = 2.5;
   private attackPrepareTime: number = 0.7;
   private attackPrepareTimer: number = 0;
-  private attackRange: number = 10; // 攻撃範囲を10メートルに変更
+  private attackRange: number = 6; // 突進攻撃の距離 (少し短く調整)
+  private attackIndicatorWidth: number = 1.2; // ★★★ 追加: 攻撃範囲表示用の幅 ★★★
   private attackRangeMesh: THREE.Mesh | null = null;
   private attackDirection: THREE.Vector3 = new THREE.Vector3();
   private attackSpeed: number = 10;
@@ -21,7 +22,8 @@ export class RustyKnight extends Enemy {
     super();
     this.health = 30;
     this.maxHealth = 30;
-    this.damage = 7;
+    // ★★★ ここの値を変更して攻撃力を調整します ★★★
+    this.damage = 20;
     this.speed = 2.2;
     this.experienceValue = 20;
 
@@ -69,22 +71,6 @@ export class RustyKnight extends Enemy {
     this.mesh.add(this.knightMesh);
     this.mesh.name = 'rustyKnight';
 
-    // 攻撃範囲を示す視覚的なインジケーターを追加
-    const rangeIndicator = new THREE.Mesh(
-      new THREE.CircleGeometry(this.attackRange, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0xff6600,
-        transparent: true,
-        opacity: 0.0,
-        side: THREE.DoubleSide,
-      }),
-    );
-    rangeIndicator.rotation.x = -Math.PI / 2;
-    rangeIndicator.position.y = 0.05;
-    rangeIndicator.name = 'rangeIndicator';
-    rangeIndicator.visible = false;
-    this.mesh.add(rangeIndicator);
-
     this.createHPBar();
 
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
@@ -93,49 +79,40 @@ export class RustyKnight extends Enemy {
   }
 
   public update(deltaTime: number, playerObj?: Player | null): void {
-    // console.log('[RustyKnight] update called', {
-    //   state: this.state,
-    //   playerPosition: playerPosition ? playerPosition.toArray() : null,
-    //   selfPosition: this.mesh.position.toArray(),
-    //   attackCooldown: this.attackCooldown,
-    //   distance: playerPosition
-    //     ? this.mesh.position.distanceTo(playerPosition)
-    //     : null,
-    // });
     const playerPosition = playerObj?.getPosition();
     switch (this.state) {
       case 'idle': {
-        if (!playerPosition) {
-          console.log('[RustyKnight] playerPosition is undefined or null');
-        } else if (this.mesh.position.distanceTo(playerPosition) >= 10) {
-          console.log('[RustyKnight] player is too far', {
-            distance: this.mesh.position.distanceTo(playerPosition),
-          });
-        } else if (this.attackCooldown > 0) {
-          console.log('[RustyKnight] attackCooldown active', {
-            attackCooldown: this.attackCooldown,
-          });
-        }
-        console.log(
-          '[RustyKnight] idle state - attackCooldown:',
-          this.attackCooldown,
-        );
         if (
           playerPosition &&
-          this.mesh.position.distanceTo(playerPosition) < 10 &&
+          this.mesh.position.distanceTo(playerPosition) < 10 && // 索敵範囲は広め
           this.attackCooldown <= 0
         ) {
-          console.log('[RustyKnight] Transitioning to prepareAttack', {
-            playerDistance: this.mesh.position.distanceTo(playerPosition),
-            attackCooldown: this.attackCooldown,
-          }); // ← 追加: 条件をログ出力
-          this.state = 'prepareAttack';
-          this.attackPrepareTimer = 0;
-          this.hasAttacked = false;
-          // 攻撃方向を記録（プレイヤーの進行方向を模倣）
-          this.attackDirection.copy(
-            playerPosition.clone().sub(this.mesh.position).setY(0).normalize(),
-          );
+          // プレイヤーが攻撃開始可能な距離(attackRangeより少し遠く)にいるか確認
+          const distanceToPlayer =
+            this.mesh.position.distanceTo(playerPosition);
+          if (distanceToPlayer < this.attackRange + 2.0) {
+            // 攻撃準備開始距離
+            this.state = 'prepareAttack';
+            this.attackPrepareTimer = 0;
+            this.hasAttacked = false;
+            // 攻撃方向を記録
+            this.attackDirection.copy(
+              playerPosition
+                .clone()
+                .sub(this.mesh.position)
+                .setY(0)
+                .normalize(),
+            );
+            // 攻撃方向を向く
+            const angle = Math.atan2(
+              this.attackDirection.x,
+              this.attackDirection.z,
+            );
+            this.mesh.rotation.y = angle;
+          } else {
+            // 攻撃準備距離まで近づく
+            this.moveTowards(playerPosition, deltaTime);
+          }
         } else {
           // 通常の移動
           if (playerPosition) {
@@ -146,99 +123,77 @@ export class RustyKnight extends Enemy {
         // 攻撃範囲Meshが表示されていたら消す
         if (this.attackRangeMesh && this.attackRangeMesh.parent) {
           this.attackRangeMesh.parent.remove(this.attackRangeMesh);
+          // ★★★ 修正: disposeも呼ぶ ★★★
+          this.attackRangeMesh.geometry.dispose();
+          if (Array.isArray(this.attackRangeMesh.material)) {
+            this.attackRangeMesh.material.forEach((m) => m.dispose());
+          } else {
+            this.attackRangeMesh.material.dispose();
+          }
           this.attackRangeMesh = null;
         }
         break;
       }
       case 'prepareAttack': {
         this.attackPrepareTimer += deltaTime;
-        console.log('[RustyKnight] State changed to prepareAttack.'); // Log: ステート変更
+
+        // ★★★ 追加: プレイヤーに向かってゆっくり移動 ★★★
+        if (playerPosition) {
+          this.moveTowards(playerPosition, deltaTime * 0.2); // 通常の0.2倍の速度
+        }
+        // ★★★ ここまで ★★★
+
         // 攻撃範囲Meshを生成・表示（初回のみ）
         if (!this.attackRangeMesh) {
-          console.log('[RustyKnight] Creating attackRangeMesh...'); // Log: 生成開始
-          // CylinderGeometryで円筒を作成し、攻撃方向に合わせて配置
-          const radius = 0.5;
-          const height = this.attackRange;
-          const geometry = new THREE.CylinderGeometry(
-            radius,
-            radius,
-            height,
-            32,
-            1,
-            true,
+          // ★★★ 変更: PlaneGeometry を使用 ★★★
+          const geometry = new THREE.PlaneGeometry(
+            this.attackIndicatorWidth, // 幅
+            this.attackRange, // 長さ
           );
           const material = new THREE.MeshBasicMaterial({
             color: 0xff3300,
             transparent: true,
             opacity: 0.4,
             depthWrite: false,
-            depthTest: false, // 追加：常に前面に描画
+            depthTest: false, // 常に前面に描画
             side: THREE.DoubleSide,
           });
-          console.log('[RustyKnight] attackRangeMesh material properties:', {
-            // Log: マテリアルプロパティ
-            color: material.color.getHexString(),
-            transparent: material.transparent,
-            opacity: material.opacity,
-            depthWrite: material.depthWrite,
-            depthTest: material.depthTest,
-            side: material.side,
-          });
           const mesh = new THREE.Mesh(geometry, material);
-          // 円筒の中心を敵の前方に移動
-          // CylinderはY軸方向に伸びるので、まずX-Z平面に倒す
-          mesh.rotation.z = Math.PI / 2;
-          // 攻撃方向に合わせて回転
-          mesh.rotation.y = Math.atan2(
+          // ★★★ 変更: 地面に水平に回転 ★★★
+          mesh.rotation.x = -Math.PI / 2;
+          // ★★★ 変更: 攻撃方向に向ける ★★★
+          const angle = Math.atan2(
             this.attackDirection.x,
             this.attackDirection.z,
           );
-          // 中心を敵の前方(attackRange/2)に配置
-          mesh.position.set(
-            (this.attackDirection.x * this.attackRange) / 2,
-            0.8,
-            (this.attackDirection.z * this.attackRange) / 2,
-          );
+          mesh.rotation.z = angle; // Y軸回転ではなくZ軸回転 (PlaneはXY平面なので)
+
           mesh.visible = true;
           mesh.name = 'attackRangeMesh';
           this.attackRangeMesh = mesh;
-          console.log('[RustyKnight] attackRangeMesh created:', {
-            // Log: 生成されたメッシュの情報
-            position: this.attackRangeMesh.position.toArray(),
-            rotation: [
-              this.attackRangeMesh.rotation.x,
-              this.attackRangeMesh.rotation.y,
-              this.attackRangeMesh.rotation.z,
-            ],
-            visible: this.attackRangeMesh.visible,
-            name: this.attackRangeMesh.name,
-          });
-          console.log(
-            '[RustyKnight] Adding attackRangeMesh to this.mesh. Children before:',
-            this.mesh.children.length,
-          ); // Log: 追加前の子供の数
-          // 常に自身のメッシュ配下に追加
-          this.mesh.add(mesh);
-          console.log(
-            '[RustyKnight] Added attackRangeMesh to this.mesh. Children after:',
-            this.mesh.children.length,
-          ); // Log: 追加後の子供の数
-          console.log(
-            '[RustyKnight] this.mesh children:',
-            this.mesh.children.map((c) => c.name),
-          ); // Log: 子供のリスト
+          // ★★★ 変更: シーンのルートに追加 ★★★
+          if (this.mesh.parent) {
+            this.mesh.parent.add(mesh);
+          }
         }
         if (this.attackRangeMesh) {
-          // 攻撃範囲Meshの位置・回転を更新
+          // ★★★ 変更: 攻撃範囲Meshの位置を敵の前方に設定 ★★★
+          const forwardOffset = this.attackDirection
+            .clone()
+            .multiplyScalar(this.attackRange / 2);
+          const meshPosition = this.mesh.position.clone().add(forwardOffset);
           this.attackRangeMesh.position.set(
-            (this.attackDirection.x * this.attackRange) / 2,
-            0.8,
-            (this.attackDirection.z * this.attackRange) / 2,
+            meshPosition.x,
+            0.05, // 地面すれすれ
+            meshPosition.z,
           );
-          this.attackRangeMesh.rotation.y = Math.atan2(
+          // ★★★ 変更: 攻撃方向に向ける (毎フレーム更新は不要かも) ★★★
+          const angle = Math.atan2(
             this.attackDirection.x,
             this.attackDirection.z,
           );
+          this.attackRangeMesh.rotation.z = angle;
+
           this.attackRangeMesh.visible = true; // 念のため毎回trueに設定
 
           // 攻撃準備中に徐々に透明度と色を変化させて警告効果を高める
@@ -262,32 +217,12 @@ export class RustyKnight extends Enemy {
               this.attackRangeMesh.material.opacity = opacity * pulseIntensity;
             }
           }
-
-          // Log: 更新後のメッシュの状態
-          if (!Array.isArray(this.attackRangeMesh.material)) {
-            console.log('[RustyKnight] Updating attackRangeMesh:', {
-              position: this.attackRangeMesh.position.toArray(),
-              rotation: [
-                this.attackRangeMesh.rotation.x,
-                this.attackRangeMesh.rotation.y,
-                this.attackRangeMesh.rotation.z,
-              ],
-              visible: this.attackRangeMesh.visible,
-              opacity: this.attackRangeMesh.material.opacity,
-              color: (
-                this.attackRangeMesh.material as THREE.MeshBasicMaterial
-              ).color.getHexString(),
-            });
-          }
         } else {
-          console.warn(
-            '[RustyKnight] attackRangeMesh is null in prepareAttack update.',
-          ); // Log: メッシュがnullの場合の警告
+          console.warn('RustyKnight: attackRangeMesh is null in prepareAttack');
         }
         if (this.attackPrepareTimer >= this.attackPrepareTime) {
           this.state = 'attacking';
           this.attackTimer = 0;
-          console.log('[RustyKnight] State changed to attacking.'); // Log: ステート変更
 
           // 攻撃開始時に一瞬明るく表示
           if (
@@ -298,7 +233,6 @@ export class RustyKnight extends Enemy {
             (
               this.attackRangeMesh.material as THREE.MeshBasicMaterial
             ).color.setRGB(1, 0, 0);
-            console.log('[RustyKnight] attackRangeMesh flash effect applied.'); // Log: フラッシュエフェクト適用
           }
         }
         break;
@@ -306,65 +240,77 @@ export class RustyKnight extends Enemy {
       case 'attacking': {
         this.attackTimer += deltaTime;
         // 突き攻撃の移動
-        const t = Math.min(this.attackTimer / this.attackDuration, 1);
         const moveDist = this.attackSpeed * deltaTime;
-        this.mesh.position.add(
-          this.attackDirection.clone().multiplyScalar(moveDist),
-        );
+        const moveVec = this.attackDirection.clone().multiplyScalar(moveDist);
+        this.mesh.position.add(moveVec);
+
         // 攻撃判定
         if (!this.hasAttacked && playerPosition && playerObj) {
-          // プレイヤーが攻撃範囲内か判定
-          const forward = this.attackDirection;
-          const toPlayer = playerPosition
-            .clone()
-            .sub(this.mesh.position)
-            .setY(0);
-          const proj = toPlayer.dot(forward);
-          const side = toPlayer
-            .clone()
-            .sub(forward.clone().multiplyScalar(proj));
-          if (proj > 0 && proj < this.attackRange && side.length() < 0.5) {
+          // プレイヤーが攻撃範囲内か判定 (矩形範囲で判定)
+          // ★★★ 変更: attackDirection を基準にローカル座標を計算 ★★★
+          const toPlayer = playerPosition.clone().sub(this.mesh.position);
+          const halfWidth = this.attackIndicatorWidth / 2;
+
+          // attackDirection (ローカルZ軸) とそれに直交するベクトル (ローカルX軸) を定義
+          const localForward = this.attackDirection; // attackDirection は正規化済みのはず
+          // Y軸が上向きと仮定して、外積で右方向ベクトルを計算
+          const localRight = new THREE.Vector3()
+            .crossVectors(new THREE.Vector3(0, 1, 0), localForward)
+            .normalize();
+
+          // toPlayer ベクトルをローカル軸に射影
+          const localZ = toPlayer.dot(localForward);
+          const localX = toPlayer.dot(localRight);
+
+          // 攻撃範囲 (ローカルZ軸前方、ローカルX軸左右)
+          if (
+            localZ > 0 && // 敵の前方
+            localZ < this.attackRange && // 攻撃距離内
+            Math.abs(localX) < halfWidth // 攻撃幅内
+          ) {
             if (typeof playerObj.takeDamage === 'function') {
               playerObj.takeDamage(this.damage);
             }
-            this.hasAttacked = true;
+            this.hasAttacked = true; // 一度ヒットしたらこの攻撃中は再ヒットしない
           }
+          // ★★★ ここまで変更 ★★★
         }
-        // 攻撃範囲Meshの位置を更新
+
+        // ★★★ 変更なし: 攻撃範囲Meshの位置を更新 ★★★
         if (this.attackRangeMesh) {
+          const forwardOffset = this.attackDirection
+            .clone()
+            .multiplyScalar(this.attackRange / 2);
+          const meshPosition = this.mesh.position.clone().add(forwardOffset);
           this.attackRangeMesh.position.set(
-            (this.attackDirection.x * this.attackRange) / 2,
-            0.8,
-            (this.attackDirection.z * this.attackRange) / 2,
+            meshPosition.x,
+            0.05,
+            meshPosition.z,
           );
-          this.attackRangeMesh.rotation.y = Math.atan2(
-            this.attackDirection.x,
-            this.attackDirection.z,
-          );
+          // 回転は攻撃開始時の向きのまま
           this.attackRangeMesh.visible = true;
-          console.log('[RustyKnight] attackRangeMesh in attacking state:', {
-            // Log: 攻撃中のメッシュ状態
-            visible: this.attackRangeMesh.visible,
-            position: this.attackRangeMesh.position.toArray(),
-          });
         } else {
-          console.warn(
-            '[RustyKnight] attackRangeMesh is null in attacking state.',
-          ); // Log: 攻撃中にメッシュがnull
+          console.warn('RustyKnight: attackRangeMesh is null in attacking');
         }
-        if (t >= 1) {
+
+        if (this.attackTimer >= this.attackDuration) {
           this.state = 'cooldown';
           this.attackCooldown = this.attackInterval;
-          console.log('[RustyKnight] State changed to cooldown.'); // Log: ステート変更
           // 攻撃範囲Meshを消す
           if (this.attackRangeMesh && this.attackRangeMesh.parent) {
-            console.log('[RustyKnight] Removing attackRangeMesh.'); // Log: メッシュ削除
             this.attackRangeMesh.parent.remove(this.attackRangeMesh);
+            // ★★★ 修正: disposeも呼ぶ ★★★
+            this.attackRangeMesh.geometry.dispose();
+            if (Array.isArray(this.attackRangeMesh.material)) {
+              this.attackRangeMesh.material.forEach((m) => m.dispose());
+            } else {
+              this.attackRangeMesh.material.dispose();
+            }
             this.attackRangeMesh = null;
           } else {
             console.warn(
-              '[RustyKnight] Attempted to remove null or detached attackRangeMesh.',
-            ); // Log: 削除試行時の警告
+              'RustyKnight: attackRangeMesh or its parent is null in attacking end',
+            );
           }
         }
         break;
@@ -375,10 +321,28 @@ export class RustyKnight extends Enemy {
           this.state = 'idle';
           this.attackCooldown = 0;
         }
+        // クールダウン中は少しだけ移動可能にする（硬直時間を短く見せる）
+        if (playerPosition) {
+          this.moveTowards(playerPosition, deltaTime * 0.3); // 通常より遅く
+        }
         super.update(deltaTime);
+        // 念のため攻撃範囲Meshを消す
+        if (this.attackRangeMesh && this.attackRangeMesh.parent) {
+          this.attackRangeMesh.parent.remove(this.attackRangeMesh);
+          // ★★★ 修正: disposeも呼ぶ ★★★
+          this.attackRangeMesh.geometry.dispose();
+          if (Array.isArray(this.attackRangeMesh.material)) {
+            this.attackRangeMesh.material.forEach((m) => m.dispose());
+          } else {
+            this.attackRangeMesh.material.dispose();
+          }
+          this.attackRangeMesh = null;
+        }
         break;
       }
     }
+    // HPバーの位置更新は Enemy クラスの update で呼ばれるはず
+    // super.update(deltaTime); // ここではなく、各ステート内で必要に応じて呼ぶ
   }
 
   public moveTowards(target: THREE.Vector3, deltaTime: number): void {
@@ -386,6 +350,7 @@ export class RustyKnight extends Enemy {
       .subVectors(target, this.mesh.position)
       .setY(0)
       .normalize();
+    // ★★★ 変更: moveTowards に渡される deltaTime が既に調整されているので、ここでは speed をそのまま使う ★★★
     const moveDistance = this.speed * deltaTime;
     const moveVec = direction.clone().multiplyScalar(moveDistance);
     this.mesh.position.add(moveVec);
