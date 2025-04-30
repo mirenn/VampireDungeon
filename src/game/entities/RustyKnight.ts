@@ -17,7 +17,7 @@ export class RustyKnight extends Enemy {
   private attackTimer: number = 0;
   private hasAttacked: boolean = false;
   private knightMesh: THREE.Mesh;
-  private detectionRange: number = 15; // ★★★ 追加: プレイヤーを検知する範囲 ★★★
+  public detectionRange: number = 15; // ★★★ 追加: プレイヤーを検知する範囲 ★★★
 
   constructor() {
     super();
