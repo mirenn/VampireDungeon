@@ -17,6 +17,7 @@ export class RustyKnight extends Enemy {
   private attackTimer: number = 0;
   private hasAttacked: boolean = false;
   private knightMesh: THREE.Mesh;
+  private detectionRange: number = 15; // ★★★ 追加: プレイヤーを検知する範囲 ★★★
 
   constructor() {
     super();
@@ -82,45 +83,54 @@ export class RustyKnight extends Enemy {
     const playerPosition = playerObj?.getPosition();
     switch (this.state) {
       case 'idle': {
-        if (
-          playerPosition &&
-          this.mesh.position.distanceTo(playerPosition) < 10 && // 索敵範囲は広め
-          this.attackCooldown <= 0
-        ) {
-          // プレイヤーが攻撃開始可能な距離(attackRangeより少し遠く)にいるか確認
+        if (playerPosition) {
           const distanceToPlayer =
             this.mesh.position.distanceTo(playerPosition);
-          if (distanceToPlayer < this.attackRange + 2.0) {
-            // 攻撃準備開始距離
-            this.state = 'prepareAttack';
-            this.attackPrepareTimer = 0;
-            this.hasAttacked = false;
-            // 攻撃方向を記録
-            this.attackDirection.copy(
-              playerPosition
-                .clone()
-                .sub(this.mesh.position)
-                .setY(0)
-                .normalize(),
-            );
-            // 攻撃方向を向く
-            const angle = Math.atan2(
-              this.attackDirection.x,
-              this.attackDirection.z,
-            );
-            this.mesh.rotation.y = angle;
+          // ★★★ 変更: 索敵範囲(detectionRange)内でのみ行動 ★★★
+          if (distanceToPlayer < this.detectionRange) {
+            if (
+              distanceToPlayer < 10 && // 攻撃準備開始の索敵範囲はそのまま
+              this.attackCooldown <= 0
+            ) {
+              // プレイヤーが攻撃開始可能な距離(attackRangeより少し遠く)にいるか確認
+              if (distanceToPlayer < this.attackRange + 2.0) {
+                // 攻撃準備開始距離
+                this.state = 'prepareAttack';
+                this.attackPrepareTimer = 0;
+                this.hasAttacked = false;
+                // 攻撃方向を記録
+                this.attackDirection.copy(
+                  playerPosition
+                    .clone()
+                    .sub(this.mesh.position)
+                    .setY(0)
+                    .normalize(),
+                );
+                // 攻撃方向を向く
+                const angle = Math.atan2(
+                  this.attackDirection.x,
+                  this.attackDirection.z,
+                );
+                this.mesh.rotation.y = angle;
+              } else {
+                // 攻撃準備距離まで近づく
+                this.moveTowards(playerPosition, deltaTime);
+              }
+            } else {
+              // 通常の移動 (索敵範囲内でのみ)
+              this.moveTowards(playerPosition, deltaTime);
+              super.update(deltaTime); // HPバー更新など
+            }
           } else {
-            // 攻撃準備距離まで近づく
-            this.moveTowards(playerPosition, deltaTime);
+            // 索敵範囲外なら何もしない (またはランダムウォークなど)
+            super.update(deltaTime); // HPバー更新など
           }
         } else {
-          // 通常の移動
-          if (playerPosition) {
-            this.moveTowards(playerPosition, deltaTime);
-          }
-          super.update(deltaTime);
+          // プレイヤーがいない場合は何もしない
+          super.update(deltaTime); // HPバー更新など
         }
-        // 攻撃範囲Meshが表示されていたら消す
+
+        // 攻撃範囲Meshが表示されていたら消す (これは状態遷移時に行うべきかもしれない)
         if (this.attackRangeMesh && this.attackRangeMesh.parent) {
           this.attackRangeMesh.parent.remove(this.attackRangeMesh);
           // ★★★ 修正: disposeも呼ぶ ★★★
@@ -322,10 +332,14 @@ export class RustyKnight extends Enemy {
           this.attackCooldown = 0;
         }
         // クールダウン中は少しだけ移動可能にする（硬直時間を短く見せる）
-        if (playerPosition) {
+        // ★★★ 変更: ここでも索敵範囲を考慮 ★★★
+        if (
+          playerPosition &&
+          this.mesh.position.distanceTo(playerPosition) < this.detectionRange
+        ) {
           this.moveTowards(playerPosition, deltaTime * 0.3); // 通常より遅く
         }
-        super.update(deltaTime);
+        super.update(deltaTime); // HPバー更新など
         // 念のため攻撃範囲Meshを消す
         if (this.attackRangeMesh && this.attackRangeMesh.parent) {
           this.attackRangeMesh.parent.remove(this.attackRangeMesh);
