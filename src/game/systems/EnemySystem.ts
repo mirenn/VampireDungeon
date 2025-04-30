@@ -147,13 +147,8 @@ export class EnemySystem {
         }
       }
       // 通常のupdate（HPバーやクールダウンなど）
-      if (
-        (enemy instanceof JellySlime || enemy instanceof RustyKnight) &&
-        this.player
-      ) {
+      if (this.player) {
         enemy.update(deltaTime, this.player);
-      } else {
-        enemy.update(deltaTime);
       }
     });
 

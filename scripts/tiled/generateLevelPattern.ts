@@ -180,6 +180,15 @@ function main() {
     process.exit(1);
   }
 
+  // Spawn-Pattern1 レイヤーを取得
+  const spawnPattern1Layer = map.layers.find(
+    (l) => l.name === 'Spawn-Pattern1',
+  );
+  if (!spawnPattern1Layer) {
+    console.error('Layer "Spawn-Pattern1" が見つかりません');
+    process.exit(1);
+  }
+
   const { width, height, data: wallData } = wallLayer;
   // タイル GID != 0 を「Wall」とみなす
   const walls: TilePosition[] = wallData
@@ -203,6 +212,21 @@ function main() {
       gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
     )
     .filter(Boolean) as TilePosition[];
+
+  // Spawn-Pattern1 レイヤーのタイルデータを抽出
+  const { data: spawnPattern1Data } = spawnPattern1Layer;
+  const jellySlymes: TilePosition[] = [];
+  const rustyKnights: TilePosition[] = [];
+
+  spawnPattern1Data.forEach((gid, i) => {
+    if (gid === 1993) {
+      // JellySlyme GID
+      jellySlymes.push({ x: i % width, y: Math.floor(i / width) });
+    } else if (gid === 1995) {
+      // RustyKnight GID
+      rustyKnights.push({ x: i % width, y: Math.floor(i / width) });
+    }
+  });
 
   // 水平方向の壁を検出
   const horizontalWalls = findHorizontalWalls(walls);
@@ -229,6 +253,16 @@ function main() {
   // Tombstone データをエクスポート
   console.log('\nexport const tombstones = [');
   tombstones.forEach((t) => console.log(`  { x: ${t.x}, y: ${t.y} },`));
+  console.log('];');
+
+  // JellySlyme データをエクスポート
+  console.log('\nexport const jellySlymes = [');
+  jellySlymes.forEach((s) => console.log(`  { x: ${s.x}, y: ${s.y} },`));
+  console.log('];');
+
+  // RustyKnight データをエクスポート
+  console.log('\nexport const rustyKnights = [');
+  rustyKnights.forEach((k) => console.log(`  { x: ${k.x}, y: ${k.y} },`));
   console.log('];');
 }
 

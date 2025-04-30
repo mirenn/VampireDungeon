@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Player } from './Player';
 
 export class Enemy {
   public mesh: THREE.Object3D;
@@ -57,7 +58,7 @@ export class Enemy {
     this.createHPBar();
   }
 
-  public update(deltaTime: number): void {
+  public update(deltaTime: number, playerObj?: Player | null): void {
     // バウンディングボックスの更新 - より正確に
     const box = new THREE.Box3().setFromObject(this.mesh);
     box.expandByScalar(0.2); // 少し大きめに

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './Enemy';
-import { Player } from './Player'; // プレイヤーのインポート
+import { Player } from './Player';
 
 export class JellySlime extends Enemy {
   private splitLevel: number = 0; // 0: 分裂前, 1: 分裂後
