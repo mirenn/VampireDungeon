@@ -6437,3 +6437,14 @@ export const tombstones = [
   { x: 24, y: 59 },
   { x: 23, y: 60 },
 ];
+
+export const jellySlymes = [
+  { x: 30, y: 7 },
+  { x: 18, y: 19 },
+  { x: 12, y: 30 },
+  { x: 31, y: 30 },
+];
+
+export const rustyKnights = [
+  { x: 27, y: 53 },
+];

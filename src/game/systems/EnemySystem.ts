@@ -5,44 +5,10 @@ import { RustyKnight } from '../entities/RustyKnight';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
 import { PathFindingSystem } from './PathFindingSystem';
-
-interface EnemySpawnPattern {
-  count: number;
-  spawnPoints: { x: number; y: number }[];
-}
-
-const ENEMY_PATTERNS: { [key: number]: EnemySpawnPattern } = {
-  1: {
-    count: 1,
-    spawnPoints: [
-      // { x: 30, y: 30 },
-      // { x: 35, y: 15 },
-      { x: 15, y: 35 },
-    ],
-  },
-  2: {
-    count: 5,
-    spawnPoints: [
-      { x: 40, y: 40 },
-      { x: 20, y: 20 },
-      { x: 40, y: 20 },
-      { x: 20, y: 40 },
-      { x: 30, y: 30 },
-    ],
-  },
-  3: {
-    count: 7,
-    spawnPoints: [
-      { x: 60, y: 60 },
-      { x: 20, y: 20 },
-      { x: 60, y: 20 },
-      { x: 20, y: 60 },
-      { x: 40, y: 40 },
-      { x: 40, y: 20 },
-      { x: 20, y: 40 },
-    ],
-  },
-};
+import {
+  jellySlymes as level1JellySlymes,
+  rustyKnights as level1RustyKnights,
+} from './LevelPatterns1-1';
 
 export class EnemySystem {
   private enemies: Enemy[] = [];
@@ -160,28 +126,34 @@ export class EnemySystem {
     // 既存の敵を削除
     this.clearEnemies();
 
-    const pattern = ENEMY_PATTERNS[level];
-    if (!pattern) {
-      console.error(`Level ${level} enemy pattern does not exist`);
-      return;
-    }
-
-    // 敵の生成
-    pattern.spawnPoints.forEach((point, index) => {
-      if (index < pattern.count) {
-        // JellySlimeを生成（分裂レベル0 = 元のサイズ）
-        //const enemy = new JellySlime(0);
-        const enemy = new RustyKnight(); // RustyKnightを生成
+    if (level === 1) {
+      // Level 1: JellySlimesをスポーン
+      level1JellySlymes.forEach((point) => {
+        const enemy = new JellySlime(0); // 元のサイズ
         enemy.mesh.position.set(point.x, 0, point.y);
         this.enemies.push(enemy);
         this.scene.add(enemy.mesh);
-
-        // 検知範囲の初期設定
         if (this.showDetectionRanges) {
           enemy.addDetectionRangeToScene(this.scene);
         }
-      }
-    });
+      });
+
+      // Level 1: RustyKnightsをスポーン
+      level1RustyKnights.forEach((point) => {
+        const enemy = new RustyKnight();
+        enemy.mesh.position.set(point.x, 0, point.y);
+        this.enemies.push(enemy);
+        this.scene.add(enemy.mesh);
+        if (this.showDetectionRanges) {
+          enemy.addDetectionRangeToScene(this.scene);
+        }
+      });
+    } else {
+      // 他のレベルのパターンが必要な場合はここに追加
+      console.warn(
+        `Enemy spawn pattern for level ${level} not implemented yet.`,
+      );
+    }
   }
 
   // 敵がシーン内の全てのプレイヤーを取得
