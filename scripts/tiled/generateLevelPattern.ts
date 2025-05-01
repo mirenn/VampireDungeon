@@ -180,12 +180,10 @@ function main() {
     process.exit(1);
   }
 
-  // Spawn-Pattern1 レイヤーを取得
-  const spawnPattern1Layer = map.layers.find(
-    (l) => l.name === 'Spawn-Pattern1',
-  );
-  if (!spawnPattern1Layer) {
-    console.error('Layer "Spawn-Pattern1" が見つかりません');
+  // SpawnEnemies1 レイヤーを取得
+  const spawnEnemies1Layer = map.layers.find((l) => l.name === 'SpawnEnemies1');
+  if (!spawnEnemies1Layer) {
+    console.error('Layer "SpawnEnemies1" が見つかりません');
     process.exit(1);
   }
 
@@ -213,12 +211,12 @@ function main() {
     )
     .filter(Boolean) as TilePosition[];
 
-  // Spawn-Pattern1 レイヤーのタイルデータを抽出
-  const { data: spawnPattern1Data } = spawnPattern1Layer;
+  // SpawnEnemies1 レイヤーのタイルデータを抽出
+  const { data: spawnEnemies1Data } = spawnEnemies1Layer;
   const jellySlymes: TilePosition[] = [];
   const rustyKnights: TilePosition[] = [];
 
-  spawnPattern1Data.forEach((gid, i) => {
+  spawnEnemies1Data.forEach((gid, i) => {
     if (gid === 1993) {
       // JellySlyme GID
       jellySlymes.push({ x: i % width, y: Math.floor(i / width) });

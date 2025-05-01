@@ -8,7 +8,7 @@ import { PathFindingSystem } from './PathFindingSystem';
 import {
   jellySlymes as level1JellySlymes,
   rustyKnights as level1RustyKnights,
-} from './LevelPatterns1-1';
+} from './level-patterns/1/1-1'; // JellySlime と RustyKnight のスポーンポイント
 
 export class EnemySystem {
   private enemies: Enemy[] = [];
