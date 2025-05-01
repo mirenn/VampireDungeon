@@ -6,7 +6,7 @@ import {
   walls as level1Walls,
   floors as level1Floors,
   tombstones as level1Tombstones,
-} from './LevelPatterns1-1'; // floors をインポート
+} from './level-patterns/1/1-1'; // floors をインポート
 
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
 interface TilePosition {

@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "gen:maps": "tsx scripts/tiled/generateLevelPattern.ts src/assets/maps/floor1-1.tmj > src/game/systems/LevelPatterns1-1.ts"
+    "gen:maps": "tsx scripts/tiled/generateLevelPattern.ts scripts/tiled/maps/1-1.tmj > src/game/systems/level-patterns/1/1-1.ts"
   },
   "keywords": [],
   "author": "",
