@@ -9,7 +9,13 @@ import {
   playerSpawn as level1PlayerSpawn,
   stairs as level1Stairs,
 } from './level-patterns/1/1-1'; // floors をインポート
-
+import {
+  walls as level2Walls,
+  floors as leve21Floors,
+  tombstones as level2Tombstones,
+  playerSpawn as level2PlayerSpawn,
+  stairs as level2Stairs,
+} from './level-patterns/2/2-1';
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
 interface TilePosition {
   x: number;
