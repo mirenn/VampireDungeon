@@ -29,7 +29,7 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
     walls: level1Walls,
     floors: level1Floors,
     stairs: { x: 45, y: 45, toLevel: 2 },
-    playerSpawn: { x: 10, y: 10 },
+    playerSpawn: level1PlayerSpawn,
     tombstones: level1Tombstones, // 追加
   },
   2: {
