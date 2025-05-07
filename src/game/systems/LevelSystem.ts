@@ -6,6 +6,8 @@ import {
   walls as level1Walls,
   floors as level1Floors,
   tombstones as level1Tombstones,
+  playerSpawn as level1PlayerSpawn,
+  stairs as level1Stairs,
 } from './level-patterns/1/1-1'; // floors をインポート
 
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
