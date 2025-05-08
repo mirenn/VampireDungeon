@@ -159,6 +159,98 @@ export class PathFindingSystem {
     );
   }
 
+  // ナビメッシュを更新するメソッドを追加
+  public updateNavMesh(
+    floorTiles: any[],
+    walls: any[] = [],
+    tombstones: any[] = [],
+  ): number[][] {
+    // ナビメッシュのサイズを決定（全てのオブジェクトをカバーするサイズ）
+    let maxX = 120;
+    let maxY = 120;
+
+    // フロアタイルのサイズを確認
+    if (floorTiles && floorTiles.length > 0) {
+      maxX = Math.max(maxX, ...floorTiles.map((tile) => tile.x));
+      maxY = Math.max(maxY, ...floorTiles.map((tile) => tile.y)); // tile.y => (tile) => tile.y に修正
+    }
+
+    // 墓石のサイズも確認
+    if (tombstones && tombstones.length > 0) {
+      maxX = Math.max(maxX, ...tombstones.map((tombstone) => tombstone.x));
+      maxY = Math.max(maxY, ...tombstones.map((tombstone) => tombstone.y)); // tombstone.y => (tombstone) => tombstone.y に修正
+    }
+
+    // ナビメッシュのサイズ設定（少なくとも120x120、必要に応じて大きく）
+    const navMeshSizeX = Math.max(maxX + 1, 120);
+    const navMeshSizeY = Math.max(maxY + 1, 120);
+    const navMeshData: number[][] = [];
+
+    // 初期化（全て移動不可として設定）
+    for (let y = 0; y < navMeshSizeY; y++) {
+      navMeshData[y] = [];
+      for (let x = 0; x < navMeshSizeX; x++) {
+        navMeshData[y][x] = 0; // 0: 移動不可
+      }
+    }
+
+    // 床タイルを移動可能として設定
+    if (floorTiles && floorTiles.length > 0) {
+      floorTiles.forEach((tile) => {
+        if (
+          tile.x >= 0 &&
+          tile.x < navMeshSizeX &&
+          tile.y >= 0 &&
+          tile.y < navMeshSizeY
+        ) {
+          navMeshData[tile.y][tile.x] = 1; // 1: 移動可能
+        } else {
+          console.warn(
+            `Floor tile at (${tile.x}, ${tile.y}) is outside the navMesh bounds (${navMeshSizeX}x${navMeshSizeY}).`,
+          );
+        }
+      });
+    } else {
+      console.warn(
+        'Floor tiles data not found or empty for navmesh generation.',
+      );
+    }
+
+    // 壁と墓石を移動不可として設定
+    if (walls && walls.length > 0) {
+      walls.forEach((wall) => {
+        if (
+          wall.x >= 0 &&
+          wall.x < navMeshSizeX &&
+          wall.y >= 0 &&
+          wall.y < navMeshSizeY
+        ) {
+          navMeshData[wall.y][wall.x] = 0; // 0: 移動不可
+        }
+      });
+    }
+
+    if (tombstones && tombstones.length > 0) {
+      tombstones.forEach((tombstone) => {
+        if (
+          tombstone.x >= 0 &&
+          tombstone.x < navMeshSizeX &&
+          tombstone.y >= 0 &&
+          tombstone.y < navMeshSizeY
+        ) {
+          navMeshData[tombstone.y][tombstone.x] = 0; // 0: 移動不可
+        }
+      });
+    }
+
+    // 最終的なナビメッシュをセット
+    this.setNavMeshData(navMeshData);
+    console.log('ナビメッシュをフロアタイル、壁、墓石から更新しました');
+
+    // 生成したナビメッシュデータを返す（GameManagerでの保持用）
+    return navMeshData;
+  }
+
   // デバッグ用可視化メソッド
   public createDebugVisualization(playerPosition: THREE.Vector3): THREE.Group {
     const debugGroup = new THREE.Group();

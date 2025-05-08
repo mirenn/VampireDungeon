@@ -6450,4 +6450,4 @@ export const rustyKnights = [
 
 export const playerSpawn = { x: 20, y: 12 };
 
-export const stairs = { x: 108, y: 16 };
+export const stairs = { x: 24, y: 20 };
