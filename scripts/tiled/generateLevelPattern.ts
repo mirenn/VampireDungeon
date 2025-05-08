@@ -187,29 +187,41 @@ function main() {
     process.exit(1);
   }
 
+  // SpawnPlayerBossRoom1 レイヤーを取得
+  const spawnPlayerBossRoom1Layer = map.layers.find(
+    (l) => l.name === 'SpawnPlayerBossRoom1',
+  );
+  if (!spawnPlayerBossRoom1Layer) {
+    console.error('Layer "SpawnPlayerBossRoom1" が見つかりません');
+    process.exit(1);
+  }
+
   const { width, height, data: wallData } = wallLayer;
   // タイル GID != 0 を「Wall」とみなす
-  const walls: TilePosition[] = wallData
-    .map((gid, i) =>
-      gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
-    )
-    .filter(Boolean) as TilePosition[];
+  const wallInitialTiles = wallData.map((gid, i) =>
+    gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
+  );
+  const walls: TilePosition[] = wallInitialTiles.filter(
+    (tile): tile is TilePosition => tile !== null,
+  );
 
   // Floor レイヤーのタイルデータを抽出
   const { data: floorData } = floorLayer;
-  const floors: TilePosition[] = floorData
-    .map((gid, i) =>
-      gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
-    )
-    .filter(Boolean) as TilePosition[];
+  const floorInitialTiles = floorData.map((gid, i) =>
+    gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
+  );
+  const floors: TilePosition[] = floorInitialTiles.filter(
+    (tile): tile is TilePosition => tile !== null,
+  );
 
   // Tombstone レイヤーのタイルデータを抽出
   const { data: tombstoneData } = tombstoneLayer;
-  const tombstones: TilePosition[] = tombstoneData
-    .map((gid, i) =>
-      gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
-    )
-    .filter(Boolean) as TilePosition[];
+  const tombstoneInitialTiles = tombstoneData.map((gid, i) =>
+    gid > 0 ? { x: i % width, y: Math.floor(i / width) } : null,
+  );
+  const tombstones: TilePosition[] = tombstoneInitialTiles.filter(
+    (tile): tile is TilePosition => tile !== null,
+  );
 
   // SpawnEnemies1 レイヤーのタイルデータを抽出
   const { data: spawnEnemies1Data } = spawnEnemies1Layer;
@@ -223,6 +235,21 @@ function main() {
     } else if (gid === 1995) {
       // RustyKnight GID
       rustyKnights.push({ x: i % width, y: Math.floor(i / width) });
+    }
+  });
+
+  // SpawnPlayerBossRoom1 レイヤーのタイルデータを抽出
+  const { data: spawnPlayerBossRoom1Data } = spawnPlayerBossRoom1Layer;
+  let playerSpawn: TilePosition | null = null;
+  let stairs: TilePosition | null = null;
+
+  spawnPlayerBossRoom1Data.forEach((gid, i) => {
+    if (gid === 1994) {
+      // Player GID
+      playerSpawn = { x: i % width, y: Math.floor(i / width) };
+    } else if (gid === 336) {
+      // Stairs GID
+      stairs = { x: i % width, y: Math.floor(i / width) };
     }
   });
 
@@ -262,6 +289,26 @@ function main() {
   console.log('\nexport const rustyKnights = [');
   rustyKnights.forEach((k) => console.log(`  { x: ${k.x}, y: ${k.y} },`));
   console.log('];');
+
+  // PlayerSpawn データをエクスポート
+  const finalPlayerSpawn = playerSpawn;
+  if (finalPlayerSpawn !== null) {
+    console.log(
+      `\nexport const playerSpawn = { x: ${(finalPlayerSpawn as TilePosition).x}, y: ${(finalPlayerSpawn as TilePosition).y} };`,
+    );
+  } else {
+    console.log('\nexport const playerSpawn = null;');
+  }
+
+  // Stairs データをエクスポート
+  const finalStairs = stairs;
+  if (finalStairs !== null) {
+    console.log(
+      `\nexport const stairs = { x: ${(finalStairs as TilePosition).x}, y: ${(finalStairs as TilePosition).y} };`,
+    );
+  } else {
+    console.log('\nexport const stairs = null;');
+  }
 }
 
 main();

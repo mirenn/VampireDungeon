@@ -6,8 +6,16 @@ import {
   walls as level1Walls,
   floors as level1Floors,
   tombstones as level1Tombstones,
+  playerSpawn as level1PlayerSpawn,
+  stairs as level1Stairs,
 } from './level-patterns/1/1-1'; // floors をインポート
-
+import {
+  walls as level2Walls,
+  floors as level2Floors, // タイポを修正: leve21Floors -> level2Floors
+  tombstones as level2Tombstones,
+  playerSpawn as level2PlayerSpawn,
+  stairs as level2Stairs,
+} from './level-patterns/2/2-1';
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
 interface TilePosition {
   x: number;
@@ -26,31 +34,17 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
   1: {
     walls: level1Walls,
     floors: level1Floors,
-    stairs: { x: 45, y: 45, toLevel: 2 },
-    playerSpawn: { x: 10, y: 10 },
+    stairs: { x: level1Stairs.x, y: level1Stairs.y, toLevel: 2 },
+    playerSpawn: level1PlayerSpawn,
     tombstones: level1Tombstones, // 追加
   },
   2: {
     // TODO: Level 2 の floors データを生成・インポートする
-    walls: [
-      // 外周の壁
-      { x: 0, y: 0, width: 60, height: 2 },
-      { x: 0, y: 58, width: 60, height: 2 },
-      { x: 0, y: 0, width: 2, height: 60 },
-      { x: 58, y: 0, width: 2, height: 60 },
-      // 迷路のような内部構造
-      { x: 15, y: 15, width: 30, height: 2 },
-      { x: 15, y: 15, width: 2, height: 30 },
-      { x: 43, y: 15, width: 2, height: 30 },
-      { x: 15, y: 43, width: 30, height: 2 },
-    ],
-    floors: [
-      // 仮の床データ (Level 2 用に生成されたデータに置き換える)
-      { x: 1, y: 1 },
-      { x: 2, y: 1 }, // ...
-    ],
-    stairs: { x: 55, y: 55, toLevel: 3 },
-    playerSpawn: { x: 20, y: 20 }, // 壁から十分離れた内側の位置に調整
+    walls: level2Walls, // インポートされた値を使用
+    floors: level2Floors, // インポートされた値を使用
+    stairs: { x: level2Stairs.x, y: level2Stairs.y, toLevel: 3 }, // インポートされた値を使用
+    playerSpawn: level2PlayerSpawn, // インポートされた値を使用
+    tombstones: level2Tombstones, // インポートされた値を使用
   },
   3: {
     // TODO: Level 3 の floors データを生成・インポートする
@@ -253,18 +247,19 @@ export class LevelSystem {
         pattern.playerSpawn.y,
       );
       console.log(
-        `Level ${this.currentLevel} Player Spawn Position:`,
+        `Level ${this.currentLevel} Player Spawn Position from pattern:`,
         spawnPosition,
-      ); // デバッグログを追加
+        `(using pattern.playerSpawn: { x: ${pattern.playerSpawn.x}, y: ${pattern.playerSpawn.y} })`, // 詳細情報を追加
+      );
       return spawnPosition;
     }
     const defaultSpawnPosition = new THREE.Vector3(5, 0, 5);
     console.log(
       `Level ${this.currentLevel} Player Spawn Position:`,
       defaultSpawnPosition,
-      '(Using default)',
-    ); // デバッグログを追加
-    return new THREE.Vector3(5, 0, 5); // デフォルトのスポーン位置
+      '(Using default spawn because pattern.playerSpawn is not defined)', // 理由を明記
+    );
+    return defaultSpawnPosition; // デフォルトのスポーン位置
   }
 
   // 壁のメッシュを取得

@@ -129,55 +129,18 @@ export class GameManager {
       }
     };
 
-    // パスファインディングシステムにナビメッシュデータを設定
-    // 仮のナビメッシュデータ（40x40のグリッド、すべて移動不可で初期化）
-    // TODO: マップサイズを動的に取得するように変更する
-    // レベルの床タイルに基づいてナビメッシュサイズを動的に決定
+    // レベルの床タイル、壁、墓石に基づいてナビメッシュを更新
     const floorTiles = this.levelSystem.getFloorTiles();
-    let navMeshSizeX = 120;
-    let navMeshSizeY = 120;
-    if (floorTiles && floorTiles.length > 0) {
-      // x, yの最大値を取得
-      const maxX = Math.max(...floorTiles.map((tile) => tile.x));
-      const maxY = Math.max(...floorTiles.map((tile) => tile.y));
-      navMeshSizeX = Math.max(maxX + 1, 120);
-      navMeshSizeY = Math.max(maxY + 1, 120);
-    }
-    const navMeshData: number[][] = [];
+    const walls = this.levelSystem.getWalls();
+    const tombstones = this.levelSystem.getTombstones();
 
-    for (let y = 0; y < navMeshSizeY; y++) {
-      navMeshData[y] = [];
-      for (let x = 0; x < navMeshSizeX; x++) {
-        navMeshData[y][x] = 0; // 0: 移動不可
-      }
-    }
-
-    // レベルの床タイルに基づいてナビメッシュを更新
-    if (floorTiles) {
-      floorTiles.forEach((tile) => {
-        // floorTiles の座標が navMeshData の範囲内にあるか確認
-        if (
-          tile.x >= 0 &&
-          tile.x < navMeshSizeX &&
-          tile.y >= 0 &&
-          tile.y < navMeshSizeY
-        ) {
-          // Tiled の座標系 (左上原点) と navMeshData の配列インデックスが一致すると仮定
-          navMeshData[tile.y][tile.x] = 1; // 1: 移動可能
-        } else {
-          console.warn(
-            `Floor tile at (${tile.x}, ${tile.y}) is outside the navMesh bounds (${navMeshSizeX}x${navMeshSizeY}).`,
-          );
-        }
-      });
-    } else {
-      console.warn('Floor tiles data not found for navmesh generation.');
-    }
-
-    // ナビメッシュデータを設定
-    this.navMeshData = navMeshData;
-    this.pathFindingSystem.setNavMeshData(this.navMeshData);
-    console.log('ナビメッシュデータを床タイルから初期化しました');
+    // 重複コードを排除し、PathFindingSystemのupdateNavMeshを使用
+    this.navMeshData = this.pathFindingSystem.updateNavMesh(
+      floorTiles,
+      walls,
+      tombstones,
+    );
+    console.log('ナビメッシュデータを初期化しました');
 
     // プレイヤーの参照をシステム間で共有
     const player = this.playerSystem.getPlayer();
@@ -288,6 +251,41 @@ export class GameManager {
     // --- 衝突判定とダメージ処理 ---
     this.checkCollisions(deltaTime);
     // --- ここまで追加 ---
+
+    // プレイヤーと階段の衝突判定
+    const player = this.playerSystem.getPlayer();
+    if (player) {
+      const playerBoundingBox = player.mesh.userData.boundingBox;
+      if (playerBoundingBox) {
+        const stairsCollision =
+          this.levelSystem.checkStairsCollision(playerBoundingBox);
+        if (stairsCollision.collides && stairsCollision.nextLevel !== -1) {
+          // -1 は最終階層など、遷移しない場合を示す
+          this.levelSystem.loadLevel(stairsCollision.nextLevel);
+          const newPlayerSpawnPosition =
+            this.levelSystem.getPlayerSpawnPosition();
+          player.mesh.position.copy(newPlayerSpawnPosition);
+          console.log(
+            // 追加: プレイヤーの位置が更新されたことを確認
+            `Player position after level transition to ${stairsCollision.nextLevel}. New position:`,
+            player.mesh.position.clone(),
+            ` (Expected spawn: { x: ${newPlayerSpawnPosition.x}, y: ${newPlayerSpawnPosition.y}, z: ${newPlayerSpawnPosition.z} })`,
+          );
+
+          // 新しいレベルの床タイル、壁、墓石でナビメッシュを更新
+          const floorTiles = this.levelSystem.getFloorTiles();
+          const walls = this.levelSystem.getWalls();
+          const tombstones = this.levelSystem.getTombstones();
+
+          // 重複コードを排除し、PathFindingSystemのupdateNavMeshを使用
+          this.navMeshData = this.pathFindingSystem.updateNavMesh(
+            floorTiles,
+            walls,
+            tombstones,
+          );
+        }
+      }
+    }
 
     // レンダリング
     this.renderer.render(this.scene, this.camera);
