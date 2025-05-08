@@ -166,8 +166,8 @@ export class PathFindingSystem {
     tombstones: any[] = [],
   ): number[][] {
     // ナビメッシュのサイズを決定（全てのオブジェクトをカバーするサイズ）
-    let maxX = 120;
-    let maxY = 120;
+    let maxX = 0;
+    let maxY = 0;
 
     // フロアタイルのサイズを確認
     if (floorTiles && floorTiles.length > 0) {
