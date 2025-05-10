@@ -216,16 +216,15 @@ export class PlayerSystem {
     // 出口との衝突判定
     const playerBoundingBox = this.player.mesh.userData.boundingBox;
     if (this.levelSystem.checkExitCollision(playerBoundingBox)) {
-      // 次のレベルへ進む
+      // 次のレベルへ進む通知を発行（GameManagerで処理する）
       const nextLevel = this.levelSystem.getCurrentLevel() + 1;
-      this.levelSystem.loadLevel(nextLevel);
-      console.log(`レベル${nextLevel}へ進みました！`);
+      const exitEvent = new CustomEvent('levelExit', {
+        detail: { nextLevel: nextLevel },
+      });
+      window.dispatchEvent(exitEvent);
 
-      // パスをクリア
+      // パスをクリア（これはPlayerSystemの責任範囲）
       this.clearPath();
-
-      // グローバルレベル情報を更新（UI用）
-      (window as any).gameLevel = nextLevel;
     }
 
     // カメラの位置を更新

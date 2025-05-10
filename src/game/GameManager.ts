@@ -81,6 +81,11 @@ export class GameManager {
     window.addEventListener('resize', this.onWindowResize.bind(this));
     window.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('keyup', this.onKeyUp.bind(this));
+    // レベル遷移イベントのリスナーを追加
+    window.addEventListener(
+      'levelExit',
+      this.onLevelExit.bind(this) as EventListener,
+    );
   }
 
   // ゲームの初期化
@@ -190,6 +195,10 @@ export class GameManager {
     window.removeEventListener('resize', this.onWindowResize.bind(this));
     window.removeEventListener('keydown', this.onKeyDown.bind(this));
     window.removeEventListener('keyup', this.onKeyUp.bind(this));
+    window.removeEventListener(
+      'levelExit',
+      this.onLevelExit.bind(this) as EventListener,
+    );
 
     // システムのクリーンアップ
     this.playerSystem.dispose();
@@ -252,40 +261,9 @@ export class GameManager {
     this.checkCollisions(deltaTime);
     // --- ここまで追加 ---
 
-    // プレイヤーと階段の衝突判定
-    const player = this.playerSystem.getPlayer();
-    if (player) {
-      const playerBoundingBox = player.mesh.userData.boundingBox;
-      if (playerBoundingBox) {
-        const stairsCollision =
-          this.levelSystem.checkStairsCollision(playerBoundingBox);
-        if (stairsCollision.collides && stairsCollision.nextLevel !== -1) {
-          // -1 は最終階層など、遷移しない場合を示す
-          this.levelSystem.loadLevel(stairsCollision.nextLevel);
-          const newPlayerSpawnPosition =
-            this.levelSystem.getPlayerSpawnPosition();
-          player.mesh.position.copy(newPlayerSpawnPosition);
-          console.log(
-            // 追加: プレイヤーの位置が更新されたことを確認
-            `Player position after level transition to ${stairsCollision.nextLevel}. New position:`,
-            player.mesh.position.clone(),
-            ` (Expected spawn: { x: ${newPlayerSpawnPosition.x}, y: ${newPlayerSpawnPosition.y}, z: ${newPlayerSpawnPosition.z} })`,
-          );
-
-          // 新しいレベルの床タイル、壁、墓石でナビメッシュを更新
-          const floorTiles = this.levelSystem.getFloorTiles();
-          const walls = this.levelSystem.getWalls();
-          const tombstones = this.levelSystem.getTombstones();
-
-          // 重複コードを排除し、PathFindingSystemのupdateNavMeshを使用
-          this.navMeshData = this.pathFindingSystem.updateNavMesh(
-            floorTiles,
-            walls,
-            tombstones,
-          );
-        }
-      }
-    }
+    // プレイヤーと階段の衝突判定（既存の処理は削除または無効化）
+    // この部分はPlayerSystemのcheckExitCollisionと重複するため削除
+    // PlayerSystemからイベントを受け取る形に変更したので、ここでの判定は不要
 
     // レンダリング
     this.renderer.render(this.scene, this.camera);
@@ -353,6 +331,37 @@ export class GameManager {
     }
   }
   // --- ここまで新しいメソッドを追加 ---
+
+  // レベル遷移イベント処理メソッドを追加
+  private onLevelExit(event: CustomEvent): void {
+    const nextLevel = event.detail.nextLevel;
+    console.log(`レベル${nextLevel}へ進みます！`);
+
+    // レベルを読み込む
+    this.levelSystem.loadLevel(nextLevel);
+
+    // プレイヤーの位置を新しいスポーン位置に設定
+    const player = this.playerSystem.getPlayer();
+    if (player) {
+      const newPlayerSpawnPosition = this.levelSystem.getPlayerSpawnPosition();
+      player.mesh.position.copy(newPlayerSpawnPosition);
+      player.update(0); // バウンディングボックスを更新
+    }
+
+    // 新しいレベルの床タイル、壁、墓石でナビメッシュを更新
+    const floorTiles = this.levelSystem.getFloorTiles();
+    const walls = this.levelSystem.getWalls();
+    const tombstones = this.levelSystem.getTombstones();
+
+    this.navMeshData = this.pathFindingSystem.updateNavMesh(
+      floorTiles,
+      walls,
+      tombstones,
+    );
+
+    // グローバルレベル情報を更新（UI用）
+    (window as any).gameLevel = nextLevel;
+  }
 
   // パスファインディングデバッグビジュアライゼーションの表示切り替え
   private togglePathfindingDebug(): void {
