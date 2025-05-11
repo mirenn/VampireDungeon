@@ -1,0 +1,272 @@
+import * as THREE from 'three';
+import { Enemy } from './Enemy';
+import { Player } from './Player';
+
+type Bullet = {
+  mesh: THREE.Mesh;
+  velocity: THREE.Vector3;
+  lifetime: number;
+  colorPhase?: number; // パターン3用
+};
+
+export class BlackMage extends Enemy {
+  private state: 'pattern1' | 'pattern2' | 'pattern3' = 'pattern1';
+  private patternTimer: number = 0;
+  private patternDuration: number = 7; // 各パターンの持続時間
+  private bullets: Bullet[] = [];
+  private bulletCooldown: number = 0;
+  private mageMesh: THREE.Mesh;
+
+  constructor() {
+    super();
+    this.health = 300;
+    this.maxHealth = 300;
+    this.damage = 25;
+    this.speed = 1.2;
+    this.experienceValue = 200;
+
+    this.mesh.clear();
+
+    // 黒の魔導士の簡易メッシュ（円柱＋球体＋帽子）
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.6, 1.4, 16),
+      new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.3, roughness: 0.8 }),
+    );
+    body.position.y = 0.7;
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 12, 12),
+      new THREE.MeshStandardMaterial({ color: 0x333344, metalness: 0.5, roughness: 0.7 }),
+    );
+    head.position.y = 1.45;
+
+    // 帽子
+    const hat = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 0.7, 16),
+      new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.7, roughness: 0.5 }),
+    );
+    hat.position.y = 1.85;
+
+    this.mageMesh = new THREE.Mesh();
+    this.mageMesh.add(body);
+    this.mageMesh.add(head);
+    this.mageMesh.add(hat);
+    this.mageMesh.position.y = 0;
+    this.mageMesh.scale.set(2, 2, 2);
+
+    this.mesh.add(this.mageMesh);
+    this.mesh.name = 'blackMage';
+
+    this.createHPBar();
+
+    this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
+    this.mesh.userData.boundingBox.expandByScalar(0.3);
+    this.mesh.userData.type = 'blackMage';
+  }
+
+  public update(deltaTime: number, playerObj?: Player | null): void {
+    this.patternTimer += deltaTime;
+    // パターン切り替え
+    if (this.patternTimer > this.patternDuration) {
+      this.patternTimer = 0;
+      if (this.state === 'pattern1') this.state = 'pattern2';
+      else if (this.state === 'pattern2') this.state = 'pattern3';
+      else this.state = 'pattern1';
+      this.bulletCooldown = 0;
+    }
+
+    // 弾幕パターンごとの処理
+    if (this.state === 'pattern1') {
+      this.handlePattern1(deltaTime);
+    } else if (this.state === 'pattern2') {
+      this.handlePattern2(deltaTime);
+    } else if (this.state === 'pattern3') {
+      this.handlePattern3(deltaTime);
+    }
+
+    // 弾の移動・寿命管理・当たり判定
+    this.updateBullets(deltaTime, playerObj);
+
+    super.update(deltaTime); // HPバーなど
+  }
+
+  // パターン1: 水平方向・垂直方向の弾幕
+  private handlePattern1(deltaTime: number) {
+    this.bulletCooldown -= deltaTime;
+    if (this.bulletCooldown <= 0) {
+      // 水平方向
+      for (let i = 0; i < 8; i++) {
+        const y = 0.6 + i * 0.25;
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.13, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0x3399ff, emissive: 0x003366 }),
+        );
+        mesh.position.set(5, y, -2.5);
+        const velocity = new THREE.Vector3(-2.5, 0.5, 0); // 右→左＋上昇
+        this.mesh.parent?.add(mesh);
+        this.bullets.push({ mesh, velocity, lifetime: 4 });
+      }
+      // 垂直方向
+      for (let i = 0; i < 6; i++) {
+        const x = -1.5 + i * 0.6;
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.13, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0x33ff99, emissive: 0x003322 }),
+        );
+        mesh.position.set(x, 3.5, 0);
+        // 上→下、緩急をつける
+        const vy = -1.5 - Math.sin(Date.now() * 0.001 + i) * 0.7;
+        const velocity = new THREE.Vector3(0, vy, 0.7);
+        this.mesh.parent?.add(mesh);
+        this.bullets.push({ mesh, velocity, lifetime: 3.5 });
+      }
+      this.bulletCooldown = 0.7;
+    }
+  }
+
+  // パターン2: 周囲に玉発生、回転しながら広がり戻る
+  private handlePattern2(deltaTime: number) {
+    this.bulletCooldown -= deltaTime;
+    if (this.bulletCooldown <= 0) {
+      const center = this.mesh.position.clone();
+      const numBullets = 16;
+      const time = this.patternTimer;
+      for (let i = 0; i < numBullets; i++) {
+        const angle = (2 * Math.PI * i) / numBullets + time * 1.2;
+        const radius = 1.2 + Math.sin(time * 2 + i) * 0.5;
+        const pos = center.clone().add(
+          new THREE.Vector3(
+            Math.cos(angle) * radius,
+            1.1 + Math.sin(angle * 2 + time) * 0.2,
+            Math.sin(angle) * radius,
+          ),
+        );
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15, 10, 10),
+          new THREE.MeshStandardMaterial({ color: 0x9933ff, emissive: 0x330066 }),
+        );
+        mesh.position.copy(pos);
+        this.mesh.parent?.add(mesh);
+        // 回転しながら広がり、戻る動き
+        const velocity = new THREE.Vector3(
+          Math.cos(angle + time) * 1.2,
+          0,
+          Math.sin(angle + time) * 1.2,
+        ).multiplyScalar(Math.sin(time) > 0 ? 0.7 : -0.7);
+        this.bullets.push({ mesh, velocity, lifetime: 2.5 });
+      }
+      this.bulletCooldown = 1.2;
+    }
+  }
+
+  // パターン3: 速い玉遅い玉乱雑に発生、色変化
+  private handlePattern3(deltaTime: number) {
+    this.bulletCooldown -= deltaTime;
+    if (this.bulletCooldown <= 0) {
+      const center = this.mesh.position.clone();
+      const numBullets = 7 + Math.floor(Math.random() * 6);
+      for (let i = 0; i < numBullets; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 4;
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0xff3300, emissive: 0x660000 }),
+        );
+        mesh.position.copy(center).add(new THREE.Vector3(0, 1.2, 0));
+        const velocity = new THREE.Vector3(
+          Math.cos(angle) * speed,
+          (Math.random() - 0.5) * 2,
+          Math.sin(angle) * speed,
+        );
+        this.mesh.parent?.add(mesh);
+        this.bullets.push({ mesh, velocity, lifetime: 2.5, colorPhase: 0 });
+      }
+      this.bulletCooldown = 0.25;
+    }
+  }
+
+  // 弾の移動・寿命・当たり判定・色変化
+  private updateBullets(deltaTime: number, playerObj?: Player | null) {
+    const removeList: Bullet[] = [];
+    for (const bullet of this.bullets) {
+      bullet.mesh.position.addScaledVector(bullet.velocity, deltaTime);
+
+      // パターン3: 色変化
+      if (bullet.colorPhase !== undefined) {
+        bullet.colorPhase! += deltaTime;
+        let color = 0xff3300;
+        if (bullet.colorPhase! > 0.7) color = 0xff9900;
+        if (bullet.colorPhase! > 1.2) color = 0xffff00;
+        if (bullet.mesh.material && (bullet.mesh.material as any).color) {
+          (bullet.mesh.material as any).color.setHex(color);
+        }
+        // 黄色になってから1秒で消える
+        if (bullet.colorPhase! > 2.2) bullet.lifetime = 0;
+      }
+
+      bullet.lifetime -= deltaTime;
+      if (bullet.lifetime <= 0) {
+        if (bullet.mesh.parent) bullet.mesh.parent.remove(bullet.mesh);
+        if (bullet.mesh.geometry) bullet.mesh.geometry.dispose();
+        if (bullet.mesh.material) (bullet.mesh.material as any).dispose();
+        removeList.push(bullet);
+        continue;
+      }
+
+      // プレイヤーとの当たり判定
+      if (playerObj) {
+        const playerPos = playerObj.getPosition();
+        if (bullet.mesh.position.distanceTo(playerPos) < 0.45) {
+          if (typeof playerObj.takeDamage === 'function') {
+            playerObj.takeDamage(this.damage);
+          }
+          if (bullet.mesh.parent) bullet.mesh.parent.remove(bullet.mesh);
+          if (bullet.mesh.geometry) bullet.mesh.geometry.dispose();
+          if (bullet.mesh.material) (bullet.mesh.material as any).dispose();
+          removeList.push(bullet);
+        }
+      }
+    }
+    // 配列から削除
+    this.bullets = this.bullets.filter((b) => !removeList.includes(b));
+  }
+
+  public dispose(): void {
+    if (this.mageMesh) {
+      this.mageMesh.traverse((obj: any) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m: any) => m.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
+    }
+    for (const bullet of this.bullets) {
+      if (bullet.mesh.parent) bullet.mesh.parent.remove(bullet.mesh);
+      if (bullet.mesh.geometry) bullet.mesh.geometry.dispose();
+      if (bullet.mesh.material) (bullet.mesh.material as any).dispose();
+    }
+    this.bullets = [];
+    super.dispose();
+  }
+
+  protected updateHPBarPosition(): void {
+    const hpBarContainer = (this as any).hpBarContainer;
+    if (hpBarContainer) {
+      hpBarContainer.position.y = 2.7;
+      const worldPosition = new THREE.Vector3();
+      this.mesh.getWorldPosition(worldPosition);
+      hpBarContainer.position.y = 2.7;
+      hpBarContainer.rotation.set(0, 0, 0);
+      hpBarContainer.lookAt(
+        worldPosition.x,
+        worldPosition.y + 10,
+        worldPosition.z,
+      );
+      hpBarContainer.rotateX(Math.PI / 2);
+    }
+  }
+}

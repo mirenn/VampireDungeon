@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Enemy } from '../entities/Enemy';
 import { JellySlime } from '../entities/JellySlime';
 import { RustyKnight } from '../entities/RustyKnight';
+import { BlackMage } from '../entities/BlackMage';
 import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
 import { PathFindingSystem } from './PathFindingSystem';
@@ -9,6 +10,7 @@ import {
   jellySlymes as level1JellySlymes,
   rustyKnights as level1RustyKnights,
 } from './level-patterns/1/1-1'; // JellySlime と RustyKnight のスポーンポイント
+import { blackMages as level3BlackMages } from './level-patterns/3/3-1'; // BlackMageのスポーンポイント
 
 export class EnemySystem {
   private enemies: Enemy[] = [];
@@ -148,6 +150,23 @@ export class EnemySystem {
           enemy.addDetectionRangeToScene(this.scene);
         }
       });
+    } else if (level === 3) {
+      // Level 3: BlackMageをスポーン
+      if (level3BlackMages) {
+        const spawnPoints = Array.isArray(level3BlackMages)
+          ? level3BlackMages
+          : [level3BlackMages];
+        spawnPoints.forEach((point) => {
+          const enemy = new BlackMage();
+          enemy.mesh.position.set(point.x, 0, point.y);
+          this.enemies.push(enemy);
+          this.scene.add(enemy.mesh);
+          if (this.showDetectionRanges) {
+            enemy.addDetectionRangeToScene(this.scene);
+          }
+        });
+      }
+      // 他の敵を追加したい場合はここに追記
     } else {
       // 他のレベルのパターンが必要な場合はここに追加
       console.warn(

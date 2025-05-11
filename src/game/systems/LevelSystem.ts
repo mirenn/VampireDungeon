@@ -22,6 +22,7 @@ import {
   tombstones as level3Tombstones,
   playerSpawn as level3PlayerSpawn,
   stairs as level3Stairs,
+  blackMages as level3BlackMages,
 } from './level-patterns/3/3-1'; // floors をインポート
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
 interface TilePosition {
@@ -34,7 +35,8 @@ interface MapPattern {
   floors: TilePosition[];
   stairs: { x: number; y: number; toLevel: number };
   playerSpawn?: { x: number; y: number };
-  tombstones?: TilePosition[]; // 追加
+  tombstones?: TilePosition[];
+  blackMages?: TilePosition[];
 }
 
 const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
@@ -43,7 +45,7 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
     floors: level1Floors,
     stairs: { x: level1Stairs.x, y: level1Stairs.y, toLevel: 2 },
     playerSpawn: level1PlayerSpawn,
-    tombstones: level1Tombstones, // 追加
+    tombstones: level1Tombstones,
   },
   2: {
     // TODO: Level 2 の floors データを生成・インポートする
@@ -60,6 +62,7 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
     stairs: { x: level3Stairs.x, y: level3Stairs.y, toLevel: -1 }, // -1は最終階層を示す
     playerSpawn: level3PlayerSpawn,
     tombstones: level3Tombstones,
+    blackMages: level3BlackMages, // ブラックメイジのデータを追加
   },
 };
 
