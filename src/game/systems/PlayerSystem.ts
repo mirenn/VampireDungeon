@@ -38,8 +38,8 @@ export class PlayerSystem {
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
     // カメラのオフセット位置（プレイヤーからの相対位置）
-    this.cameraOffset = new THREE.Vector3(0, 80, 80);
-    this.cameraLerpFactor = 0.1; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
+    this.cameraOffset = new THREE.Vector3(0, 90, 90);
+    this.cameraLerpFactor = 0.2; // カメラの追従速度（0〜1、値が大きいほど追従が速い）
 
     // マウス移動のイベントリスナーを追加
     window.addEventListener('mousemove', this.onMouseMove.bind(this));

@@ -16,6 +16,13 @@ import {
   playerSpawn as level2PlayerSpawn,
   stairs as level2Stairs,
 } from './level-patterns/2/2-1';
+import {
+  walls as level3Walls,
+  floors as level3Floors,
+  tombstones as level3Tombstones,
+  playerSpawn as level3PlayerSpawn,
+  stairs as level3Stairs,
+} from './level-patterns/3/3-1'; // floors をインポート
 // タイルの座標を表すインターフェース (generateLevelPattern.ts と共通化推奨)
 interface TilePosition {
   x: number;
@@ -47,26 +54,12 @@ const FLOOR_PATTERNS: { [key: number]: MapPattern } = {
     tombstones: level2Tombstones, // インポートされた値を使用
   },
   3: {
-    // TODO: Level 3 の floors データを生成・インポートする
-    walls: [
-      // 外周の壁（広いボス部屋）
-      { x: 0, y: 0, width: 80, height: 2 },
-      { x: 0, y: 78, width: 80, height: 2 },
-      { x: 0, y: 0, width: 2, height: 80 },
-      { x: 78, y: 0, width: 2, height: 80 },
-      // 四隅の柱
-      { x: 10, y: 10, width: 4, height: 4 },
-      { x: 66, y: 10, width: 4, height: 4 },
-      { x: 10, y: 66, width: 4, height: 4 },
-      { x: 66, y: 66, width: 4, height: 4 },
-    ],
-    floors: [
-      // 仮の床データ (Level 3 用に生成されたデータに置き換える)
-      { x: 1, y: 1 },
-      { x: 2, y: 1 }, // ...
-    ],
-    stairs: { x: 40, y: 40, toLevel: -1 }, // -1は最終階層を示す
-    playerSpawn: { x: 25, y: 25 }, // 壁と柱から十分離れた内側の位置に調整
+    // インポートされたデータを使用
+    walls: level3Walls,
+    floors: level3Floors,
+    stairs: { x: level3Stairs.x, y: level3Stairs.y, toLevel: -1 }, // -1は最終階層を示す
+    playerSpawn: level3PlayerSpawn,
+    tombstones: level3Tombstones,
   },
 };
 

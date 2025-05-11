@@ -1526,12 +1526,15 @@ export const floors = [
   { x: 78, y: 78 },
 ];
 
-export const tombstones = [];
+export const tombstones = [
+];
 
-export const jellySlymes = [];
+export const jellySlymes = [
+];
 
-export const rustyKnights = [];
+export const rustyKnights = [
+];
 
 export const playerSpawn = { x: 59, y: 72 };
 
-export const stairs = null;
+export const stairs = { x: 59, y: 50 };
