@@ -1,3 +1,7 @@
+/**
+ * This BlackMage is a boss character. Like a bullet hell shooter, it creates bullet patterns and moves according to specific movement patterns.
+ * When its HP drops below certain thresholds, it changes its attack pattern.
+ */
 import * as THREE from 'three';
 import { Enemy } from './Enemy';
 import { Player } from './Player';
@@ -17,7 +21,14 @@ export class BlackMage extends Enemy {
   private bulletCooldown: number = 0;
   private mageMesh: THREE.Mesh;
 
-  constructor() {
+  // 追加: HP閾値
+  private phase: 1 | 2 | 3 = 1;
+
+  // 追加: 移動用
+  private moveDirection: number = 1;
+  private moveTimer: number = 0;
+
+  constructor(x: number, y: number) {
     super();
     this.health = 300;
     this.maxHealth = 300;
@@ -30,20 +41,32 @@ export class BlackMage extends Enemy {
     // 黒の魔導士の簡易メッシュ（円柱＋球体＋帽子）
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.5, 0.6, 1.4, 16),
-      new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.3, roughness: 0.8 }),
+      new THREE.MeshStandardMaterial({
+        color: 0x222233,
+        metalness: 0.3,
+        roughness: 0.8,
+      }),
     );
     body.position.y = 0.7;
 
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.35, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0x333344, metalness: 0.5, roughness: 0.7 }),
+      new THREE.MeshStandardMaterial({
+        color: 0x333344,
+        metalness: 0.5,
+        roughness: 0.7,
+      }),
     );
     head.position.y = 1.45;
 
     // 帽子
     const hat = new THREE.Mesh(
       new THREE.ConeGeometry(0.5, 0.7, 16),
-      new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.7, roughness: 0.5 }),
+      new THREE.MeshStandardMaterial({
+        color: 0x111111,
+        metalness: 0.7,
+        roughness: 0.5,
+      }),
     );
     hat.position.y = 1.85;
 
@@ -62,20 +85,39 @@ export class BlackMage extends Enemy {
     this.mesh.userData.boundingBox = new THREE.Box3().setFromObject(this.mesh);
     this.mesh.userData.boundingBox.expandByScalar(0.3);
     this.mesh.userData.type = 'blackMage';
+    this.mesh.position.set(x, 0, y);
+
+    // 追加: 初期化時の座標ログ
+    console.log('[BlackMage] 初期化位置:', this.mesh.position);
   }
 
   public update(deltaTime: number, playerObj?: Player | null): void {
-    this.patternTimer += deltaTime;
-    // パターン切り替え
-    if (this.patternTimer > this.patternDuration) {
-      this.patternTimer = 0;
-      if (this.state === 'pattern1') this.state = 'pattern2';
-      else if (this.state === 'pattern2') this.state = 'pattern3';
-      else this.state = 'pattern1';
-      this.bulletCooldown = 0;
+    // HPによるフェーズ分岐
+    if (this.health < this.maxHealth * 0.33) {
+      this.phase = 3;
+    } else if (this.health < this.maxHealth * 0.66) {
+      this.phase = 2;
+    } else {
+      this.phase = 1;
     }
 
-    // 弾幕パターンごとの処理
+    // フェーズごとに攻撃パターン・移動パターンを決定
+    switch (this.phase) {
+      case 1:
+        this.state = 'pattern1';
+        this.movePattern1(deltaTime);
+        break;
+      case 2:
+        this.state = 'pattern2';
+        this.movePattern2(deltaTime, playerObj);
+        break;
+      case 3:
+        this.state = 'pattern3';
+        this.movePattern3(deltaTime);
+        break;
+    }
+
+    // パターンごとの弾幕
     if (this.state === 'pattern1') {
       this.handlePattern1(deltaTime);
     } else if (this.state === 'pattern2') {
@@ -99,7 +141,10 @@ export class BlackMage extends Enemy {
         const y = 0.6 + i * 0.25;
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.13, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0x3399ff, emissive: 0x003366 }),
+          new THREE.MeshStandardMaterial({
+            color: 0x3399ff,
+            emissive: 0x003366,
+          }),
         );
         mesh.position.set(5, y, -2.5);
         const velocity = new THREE.Vector3(-2.5, 0.5, 0); // 右→左＋上昇
@@ -111,7 +156,10 @@ export class BlackMage extends Enemy {
         const x = -1.5 + i * 0.6;
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.13, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0x33ff99, emissive: 0x003322 }),
+          new THREE.MeshStandardMaterial({
+            color: 0x33ff99,
+            emissive: 0x003322,
+          }),
         );
         mesh.position.set(x, 3.5, 0);
         // 上→下、緩急をつける
@@ -134,16 +182,21 @@ export class BlackMage extends Enemy {
       for (let i = 0; i < numBullets; i++) {
         const angle = (2 * Math.PI * i) / numBullets + time * 1.2;
         const radius = 1.2 + Math.sin(time * 2 + i) * 0.5;
-        const pos = center.clone().add(
-          new THREE.Vector3(
-            Math.cos(angle) * radius,
-            1.1 + Math.sin(angle * 2 + time) * 0.2,
-            Math.sin(angle) * radius,
-          ),
-        );
+        const pos = center
+          .clone()
+          .add(
+            new THREE.Vector3(
+              Math.cos(angle) * radius,
+              1.1 + Math.sin(angle * 2 + time) * 0.2,
+              Math.sin(angle) * radius,
+            ),
+          );
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.15, 10, 10),
-          new THREE.MeshStandardMaterial({ color: 0x9933ff, emissive: 0x330066 }),
+          new THREE.MeshStandardMaterial({
+            color: 0x9933ff,
+            emissive: 0x330066,
+          }),
         );
         mesh.position.copy(pos);
         this.mesh.parent?.add(mesh);
@@ -170,7 +223,10 @@ export class BlackMage extends Enemy {
         const speed = 2 + Math.random() * 4;
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.12, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0xff3300, emissive: 0x660000 }),
+          new THREE.MeshStandardMaterial({
+            color: 0xff3300,
+            emissive: 0x660000,
+          }),
         );
         mesh.position.copy(center).add(new THREE.Vector3(0, 1.2, 0));
         const velocity = new THREE.Vector3(
@@ -229,6 +285,56 @@ export class BlackMage extends Enemy {
     }
     // 配列から削除
     this.bullets = this.bullets.filter((b) => !removeList.includes(b));
+  }
+
+  // 追加: パターン1の移動（x,z: 42~78, y: 0固定で円運動）
+  private movePattern1(deltaTime: number) {
+    this.moveTimer += deltaTime;
+    // x,z: 42~78の範囲で円運動、yは0固定
+    const centerX = 60;
+    const centerZ = 60;
+    const range = 18; // (78-42)/2
+    this.mesh.position.x = centerX + Math.cos(this.moveTimer * 0.7) * range;
+    this.mesh.position.z = centerZ + Math.sin(this.moveTimer * 0.7) * range;
+    this.mesh.position.y = 0;
+    //console.log('[BlackMage] movePattern1:', this.mesh.position);
+  }
+
+  // 追加: パターン2の移動（プレイヤーをゆっくり追尾、範囲制限、yは0固定）
+  private movePattern2(deltaTime: number, playerObj?: Player | null) {
+    if (!playerObj) return;
+    const playerPos = playerObj.getPosition();
+    // yは0固定でx,zのみ追尾
+    const dir = new THREE.Vector3(
+      playerPos.x - this.mesh.position.x,
+      0,
+      playerPos.z - this.mesh.position.z,
+    );
+    if (dir.length() > 0.1) {
+      dir.normalize();
+      this.mesh.position.addScaledVector(dir, this.speed * 0.5 * deltaTime);
+    }
+    // 範囲制限
+    this.mesh.position.x = Math.max(42, Math.min(78, this.mesh.position.x));
+    this.mesh.position.z = Math.max(42, Math.min(78, this.mesh.position.z));
+    this.mesh.position.y = 0;
+    //console.log('[BlackMage] movePattern2:', this.mesh.position);
+  }
+
+  // 追加: パターン3の移動（ランダムにテレポート、範囲制限、yは0固定）
+  private movePattern3(deltaTime: number) {
+    this.moveTimer += deltaTime;
+    if (this.moveTimer > 3) {
+      this.moveTimer = 0;
+      // x,z: 42~78の範囲でランダムな位置にテレポート、yは0固定
+      const x = 42 + Math.random() * (78 - 42);
+      const z = 42 + Math.random() * (78 - 42);
+      this.mesh.position.set(x, 0, z);
+      //console.log('[BlackMage] movePattern3 テレポート:', this.mesh.position);
+    } else {
+      this.mesh.position.y = 0;
+      //console.log('[BlackMage] movePattern3:', this.mesh.position);
+    }
   }
 
   public dispose(): void {

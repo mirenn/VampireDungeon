@@ -157,8 +157,8 @@ export class EnemySystem {
           ? level3BlackMages
           : [level3BlackMages];
         spawnPoints.forEach((point) => {
-          const enemy = new BlackMage();
-          enemy.mesh.position.set(point.x, 0, point.y);
+          const enemy = new BlackMage(point.x, point.y);
+          //enemy.mesh.position.set(point.x, 0, point.y);
           this.enemies.push(enemy);
           this.scene.add(enemy.mesh);
           if (this.showDetectionRanges) {
