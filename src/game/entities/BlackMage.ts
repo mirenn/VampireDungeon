@@ -136,39 +136,74 @@ export class BlackMage extends Enemy {
   private handlePattern1(deltaTime: number) {
     this.bulletCooldown -= deltaTime;
     if (this.bulletCooldown <= 0) {
-      // 水平方向
-      for (let i = 0; i < 8; i++) {
-        const y = 0.6 + i * 0.25;
+      const mageX = this.mesh.position.x;
+      const mageZ = this.mesh.position.z;
+      const minCoord = 42;
+      const maxCoord = 78;
+      const spawnOffset = 1; // 敵の少し外側から出すためのオフセット
+      const bulletRadius = 0.2; // 弾の半径を大きくする
+      const bulletSegments = 10; // 見た目を少し滑らかに
+
+      // 水平方向の弾 (画面右端から左へ)
+      // 弾の数を減らし、間隔を調整
+      const numHorizontalBullets = 5;
+      for (let i = 0; i < numHorizontalBullets; i++) {
+        const y = 0.6 + i * 0.35; // 高さと間隔を調整
+        const spawnX = maxCoord + spawnOffset; // 右端から
+        // Z座標は敵の現在のZ位置を中心に、範囲内に収まるように調整
+        const spawnZ = Math.max(
+          minCoord,
+          Math.min(maxCoord, mageZ + (Math.random() - 0.5) * 10),
+        );
+
         const mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.13, 8, 8),
+          new THREE.SphereGeometry(
+            bulletRadius,
+            bulletSegments,
+            bulletSegments,
+          ),
           new THREE.MeshStandardMaterial({
             color: 0x3399ff,
             emissive: 0x003366,
           }),
         );
-        mesh.position.set(5, y, -2.5);
-        const velocity = new THREE.Vector3(-2.5, 0.5, 0); // 右→左＋上昇
+        mesh.position.set(spawnX, y, spawnZ);
+        const velocity = new THREE.Vector3(-3.5, 0.3, 0); // 右→左＋少し上昇
         this.mesh.parent?.add(mesh);
-        this.bullets.push({ mesh, velocity, lifetime: 4 });
+        this.bullets.push({ mesh, velocity, lifetime: 10 }); // 生存時間を調整
       }
-      // 垂直方向
-      for (let i = 0; i < 6; i++) {
-        const x = -1.5 + i * 0.6;
+
+      // 垂直方向の弾 (画面奥から手前へ)
+      // 弾の数を減らす
+      const numVerticalBullets = 4;
+      for (let i = 0; i < numVerticalBullets; i++) {
+        // X座標は敵の現在のX位置を中心に、範囲内に収まるように調整
+        const spawnX = Math.max(
+          minCoord,
+          Math.min(maxCoord, mageX + (Math.random() - 0.5) * 12), // 少し範囲を広げる
+        );
+        const spawnZ = maxCoord + spawnOffset; // 奥から
+        const y = 1.0 + Math.random() * 1.5; // 高さ (ランダム性追加)
+
         const mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.13, 8, 8),
+          new THREE.SphereGeometry(
+            bulletRadius,
+            bulletSegments,
+            bulletSegments,
+          ),
           new THREE.MeshStandardMaterial({
             color: 0x33ff99,
             emissive: 0x003322,
           }),
         );
-        mesh.position.set(x, 3.5, 0);
-        // 上→下、緩急をつける
-        const vy = -1.5 - Math.sin(Date.now() * 0.001 + i) * 0.7;
-        const velocity = new THREE.Vector3(0, vy, 0.7);
+        mesh.position.set(spawnX, y, spawnZ);
+        // 奥→手前、緩急をつける
+        const vz = -2.0 - Math.sin(Date.now() * 0.001 + i) * 0.7;
+        const velocity = new THREE.Vector3(0, (Math.random() - 0.5) * 0.5, vz);
         this.mesh.parent?.add(mesh);
-        this.bullets.push({ mesh, velocity, lifetime: 3.5 });
+        this.bullets.push({ mesh, velocity, lifetime: 10 }); // 生存時間を調整
       }
-      this.bulletCooldown = 0.7;
+      this.bulletCooldown = 1.0; // クールダウンを少し調整 (弾が減った分、頻度を少し下げるか検討)
     }
   }
 
