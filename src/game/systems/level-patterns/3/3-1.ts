@@ -1538,3 +1538,7 @@ export const rustyKnights = [
 export const playerSpawn = { x: 59, y: 72 };
 
 export const stairs = { x: 59, y: 50 };
+
+export const blackMages = [
+  { x: 59, y: 51 },
+];

@@ -242,6 +242,7 @@ function main() {
   const { data: spawnPlayerBossRoom1Data } = spawnPlayerBossRoom1Layer;
   let playerSpawn: TilePosition | null = null;
   let stairs: TilePosition | null = null;
+  const blackMages: TilePosition[] = [];
 
   spawnPlayerBossRoom1Data.forEach((gid, i) => {
     if (gid === 1994) {
@@ -250,6 +251,9 @@ function main() {
     } else if (gid === 336) {
       // Stairs GID
       stairs = { x: i % width, y: Math.floor(i / width) };
+    } else if (gid === 1996) {
+      // BlackMage GID
+      blackMages.push({ x: i % width, y: Math.floor(i / width) });
     }
   });
 
@@ -309,6 +313,11 @@ function main() {
   } else {
     console.log('\nexport const stairs = null;');
   }
+
+  // BlackMage データをエクスポート
+  console.log('\nexport const blackMages = [');
+  blackMages.forEach((b) => console.log(`  { x: ${b.x}, y: ${b.y} },`));
+  console.log('];');
 }
 
 main();

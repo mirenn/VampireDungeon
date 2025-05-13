@@ -359,6 +359,9 @@ export class GameManager {
       tombstones,
     );
 
+    // --- ここを追加: 新しいレベルの敵をスポーン ---
+    this.enemySystem.spawnEnemiesForLevel(nextLevel);
+
     // グローバルレベル情報を更新（UI用）
     (window as any).gameLevel = nextLevel;
   }

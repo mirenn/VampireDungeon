@@ -13143,3 +13143,6 @@ export const rustyKnights = [
 export const playerSpawn = { x: 87, y: 111 };
 
 export const stairs = { x: 96, y: 100 };
+
+export const blackMages = [
+];

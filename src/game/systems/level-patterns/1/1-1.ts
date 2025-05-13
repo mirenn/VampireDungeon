@@ -6446,8 +6446,12 @@ export const jellySlymes = [
 ];
 
 export const rustyKnights = [
+  { x: 25, y: 53 },
 ];
 
 export const playerSpawn = { x: 20, y: 12 };
 
 export const stairs = { x: 24, y: 20 };
+
+export const blackMages = [
+];
