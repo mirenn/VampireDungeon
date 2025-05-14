@@ -263,7 +263,7 @@ export class BlackMage extends Enemy {
             emissive: 0x660000,
           }),
         );
-        mesh.position.copy(center).add(new THREE.Vector3(0, 1.2, 0));
+        mesh.position.copy(center).add(new THREE.Vector3(0, 0, 0)); // y座標を0に変更
         const velocity = new THREE.Vector3(
           Math.cos(angle) * speed,
           (Math.random() - 0.5) * 2,
@@ -297,24 +297,37 @@ export class BlackMage extends Enemy {
 
       bullet.lifetime -= deltaTime;
       if (bullet.lifetime <= 0) {
-        if (bullet.mesh.parent) bullet.mesh.parent.remove(bullet.mesh);
-        if (bullet.mesh.geometry) bullet.mesh.geometry.dispose();
-        if (bullet.mesh.material) (bullet.mesh.material as any).dispose();
         removeList.push(bullet);
+        bullet.mesh.parent?.remove(bullet.mesh); // シーンからメッシュを削除
+        bullet.mesh.geometry.dispose();
+        (bullet.mesh.material as THREE.Material).dispose();
         continue;
       }
 
       // プレイヤーとの当たり判定
       if (playerObj) {
-        const playerPos = playerObj.getPosition();
-        if (bullet.mesh.position.distanceTo(playerPos) < 0.45) {
-          if (typeof playerObj.takeDamage === 'function') {
-            playerObj.takeDamage(this.damage);
-          }
-          if (bullet.mesh.parent) bullet.mesh.parent.remove(bullet.mesh);
-          if (bullet.mesh.geometry) bullet.mesh.geometry.dispose();
-          if (bullet.mesh.material) (bullet.mesh.material as any).dispose();
+        // 弾のバウンディングボックスを生成または更新
+        if (!bullet.mesh.userData.boundingBox) {
+          bullet.mesh.userData.boundingBox = new THREE.Box3().setFromObject(
+            bullet.mesh,
+          );
+        } else {
+          bullet.mesh.userData.boundingBox.setFromObject(bullet.mesh);
+        }
+
+        // プレイヤーのバウンディングボックスを取得
+        const playerBoundingBox = playerObj.mesh.userData.boundingBox;
+
+        if (
+          playerBoundingBox &&
+          bullet.mesh.userData.boundingBox.intersectsBox(playerBoundingBox)
+        ) {
+          playerObj.takeDamage(this.damage);
           removeList.push(bullet);
+          bullet.mesh.parent?.remove(bullet.mesh); // シーンからメッシュを削除
+          bullet.mesh.geometry.dispose();
+          (bullet.mesh.material as THREE.Material).dispose();
+          // console.log('Player hit by bullet!');
         }
       }
     }
