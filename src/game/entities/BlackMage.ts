@@ -141,7 +141,7 @@ export class BlackMage extends Enemy {
       const minCoord = 42;
       const maxCoord = 78;
       const spawnOffset = 1; // 敵の少し外側から出すためのオフセット
-      const bulletRadius = 0.2; // 弾の半径を大きくする
+      const bulletRadius = 0.3; // 弾の半径を大きくする
       const bulletSegments = 10; // 見た目を少し滑らかに
 
       // 水平方向の弾 (画面右端から左へ)
