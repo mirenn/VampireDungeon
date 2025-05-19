@@ -102,18 +102,6 @@ export class GameManager {
     directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(directionalLight);
 
-    // 地面の追加
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
-    const groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a472a,
-      roughness: 0.8,
-      metalness: 0.2,
-    });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2; // 水平にする
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-
     // 各システムの初期化
     this.levelSystem.init();
     this.playerSystem.init();

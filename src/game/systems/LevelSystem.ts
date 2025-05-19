@@ -71,9 +71,11 @@ export class LevelSystem {
   private currentLevel: number = 1;
   private walls: THREE.Mesh[] = [];
   private floorTiles: TilePosition[] = []; // 床タイルの座標を保持する配列
+  private floorTileMeshes: THREE.Mesh[] = []; // 生成された床タイルのメッシュを保持
   private stairs?: THREE.Mesh;
   private wallMaterial: THREE.Material;
   private stairsMaterial: THREE.Material;
+  private floorMaterial: THREE.Material; // 床タイル用のマテリアル
   private tombstones: Tombstone[] = [];
   private gltfLoader: GLTFLoader;
   private tombstoneGLTF?: THREE.Group;
@@ -85,6 +87,7 @@ export class LevelSystem {
     this.scene = scene;
     this.wallMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
     this.stairsMaterial = new THREE.MeshStandardMaterial({ color: 0xffd700 });
+    this.floorMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc }); // 床マテリアルの初期化
     this.gltfLoader = new GLTFLoader();
     // 事前に墓石モデルを非同期で読み込む
     this.gltfLoader.load(
@@ -119,6 +122,18 @@ export class LevelSystem {
 
     // 床タイルデータの読み込み
     this.floorTiles = pattern.floors; // パターンから床タイルデータを取得
+
+    // 床タイルの生成
+    this.floorTiles.forEach((tile) => {
+      const geometry = new THREE.PlaneGeometry(1, 1); // 1x1の平面ジオメトリ
+      const mesh = new THREE.Mesh(geometry, this.floorMaterial);
+      // メッシュを水平にし、Y=0の位置に配置
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(tile.x + 0.5, 0, tile.y + 0.5); // タイルの中央に配置
+      mesh.receiveShadow = true; // 影を受け取る設定
+      this.floorTileMeshes.push(mesh);
+      this.scene.add(mesh);
+    });
 
     // 壁の生成
     pattern.walls.forEach((wall) => {
@@ -182,6 +197,13 @@ export class LevelSystem {
 
     // 床タイルデータのクリア
     this.floorTiles = [];
+
+    // 床タイルメッシュの削除
+    this.floorTileMeshes.forEach((tileMesh) => {
+      this.scene.remove(tileMesh);
+      tileMesh.geometry.dispose();
+    });
+    this.floorTileMeshes = [];
 
     // 階段の削除
     if (this.stairs) {
@@ -277,5 +299,6 @@ export class LevelSystem {
     this.clearLevel();
     this.wallMaterial.dispose();
     this.stairsMaterial.dispose();
+    this.floorMaterial.dispose(); // 床マテリアルの破棄
   }
 }

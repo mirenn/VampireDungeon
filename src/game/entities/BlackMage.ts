@@ -168,6 +168,7 @@ export class BlackMage extends Enemy {
           }),
         );
         mesh.position.set(spawnX, y, spawnZ);
+        mesh.castShadow = true; // 影を落とす
         const velocity = new THREE.Vector3(-3.5, 0.3, 0); // 右→左＋少し上昇
         this.mesh.parent?.add(mesh);
         this.bullets.push({ mesh, velocity, lifetime: 10 }); // 生存時間を調整
@@ -197,6 +198,7 @@ export class BlackMage extends Enemy {
           }),
         );
         mesh.position.set(spawnX, y, spawnZ);
+        mesh.castShadow = true; // 影を落とす
         // 奥→手前、緩急をつける
         const vz = -2.0 - Math.sin(Date.now() * 0.001 + i) * 0.7;
         const velocity = new THREE.Vector3(0, (Math.random() - 0.5) * 0.5, vz);
@@ -234,6 +236,7 @@ export class BlackMage extends Enemy {
           }),
         );
         mesh.position.copy(pos);
+        mesh.castShadow = true; // 影を落とす
         this.mesh.parent?.add(mesh);
         // 回転しながら広がり、戻る動き
         const velocity = new THREE.Vector3(
@@ -264,6 +267,7 @@ export class BlackMage extends Enemy {
           }),
         );
         mesh.position.copy(center).add(new THREE.Vector3(0, 0, 0)); // y座標を0に変更
+        mesh.castShadow = true; // 影を落とす
         const velocity = new THREE.Vector3(
           Math.cos(angle) * speed,
           (Math.random() - 0.5) * 2,
