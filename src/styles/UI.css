@@ -129,7 +129,7 @@
 /* 画面中央下のスキルバー */
 .skills-bottom-bar {
   position: absolute;
-  bottom: 20px;
+  bottom: 20px; /* HP・MPバーが左下に移動したので、スキルバーも下げる */
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -222,4 +222,57 @@
 
 .skill-item-bottom.disabled .skill-name-bottom {
   color: #888;
+}
+
+/* HP・MPバー - 画面左下 */
+.health-mana-bars {
+  position: absolute;
+  bottom: 20px; /* 画面下から20px */
+  left: 20px; /* 画面左から20px */
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 8px;
+  padding: 8px 15px;
+  border: 2px solid rgba(241, 196, 15, 0.3);
+  display: flex;
+  flex-direction: column; /* 縦並びに変更 */
+  gap: 6px;
+  min-width: 300px;
+}
+
+.health-mana-bars .health-bar-container,
+.health-mana-bars .mana-bar-container {
+  flex: 1;
+  margin-bottom: 0;
+  position: relative;
+}
+
+.health-mana-bars .health-bar-label,
+.health-mana-bars .mana-bar-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  color: white;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.health-mana-bars .health-bar-bg,
+.health-mana-bars .mana-bar-bg {
+  width: 100%;
+  height: 18px;
+  border-radius: 9px;
+  overflow: hidden;
+  position: relative;
+}
+
+.health-mana-bars .health-bar-bg {
+  background-color: #4a1515;
+}
+
+.health-mana-bars .mana-bar-bg {
+  background-color: #152544;
 }

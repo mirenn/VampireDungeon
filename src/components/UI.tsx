@@ -49,7 +49,6 @@ function UI(props: UIProps) {
     if (max === 0) return 100;
     return ((max - current) / max) * 100;
   };
-
   return (
     <div
       className="ui-container"
@@ -57,33 +56,9 @@ function UI(props: UIProps) {
     >
       {/* ステータスパネル */}
       <div className="status-panel">
-        {/* 体力バー */}
-        <div className="health-bar-container">
-          <div className="health-bar-label">
-            HP {health}/{maxHealth}
-          </div>
-          <div className="health-bar-bg">
-            <div
-              className="health-bar-fill"
-              style={{ width: `${(health / maxHealth) * 100}%` }}
-            ></div>
-          </div>
-        </div>
-        {/* マナバー：新規追加 */}
-        <div className="mana-bar-container">
-          <div className="mana-bar-label">
-            MP {mana.toFixed(0)}/{maxMana}
-          </div>
-          <div className="mana-bar-bg">
-            <div
-              className="mana-bar-fill"
-              style={{ width: `${(mana / maxMana) * 100}%` }}
-            ></div>
-          </div>{' '}
-        </div>
         {/* ダンジョンレベル */}
-        <div className="dungeon-level">ダンジョン レベル: {dunLevel}</div>{' '}
-      </div>{' '}
+        <div className="dungeon-level">ダンジョン レベル: {dunLevel}</div>
+      </div>
       {/* スキルバー - 画面中央下 */}
       <div className="skills-bottom-bar">
         {Object.entries(skillCooldowns).map(([key, skill]) => {
@@ -113,7 +88,34 @@ function UI(props: UIProps) {
               </div>
             </div>
           );
-        })}
+        })}{' '}
+      </div>
+      {/* HP・MPバー - スキルの下 */}
+      <div className="health-mana-bars">
+        {/* 体力バー */}
+        <div className="health-bar-container">
+          <div className="health-bar-label">
+            HP {health}/{maxHealth}
+          </div>
+          <div className="health-bar-bg">
+            <div
+              className="health-bar-fill"
+              style={{ width: `${(health / maxHealth) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+        {/* マナバー */}
+        <div className="mana-bar-container">
+          <div className="mana-bar-label">
+            MP {mana.toFixed(0)}/{maxMana}
+          </div>
+          <div className="mana-bar-bg">
+            <div
+              className="mana-bar-fill"
+              style={{ width: `${(mana / maxMana) * 100}%` }}
+            ></div>
+          </div>
+        </div>
       </div>
       {/* 武器・アイテム欄 */}
       <div className="items-panel">
