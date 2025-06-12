@@ -87,6 +87,8 @@ export class BlackMage extends Enemy {
     this.mesh.userData.type = 'blackMage';
     this.mesh.position.set(x, 0, y);
 
+    this.mesh.castShadow = true;
+
     // 追加: 初期化時の座標ログ
     console.log('[BlackMage] 初期化位置:', this.mesh.position);
   }
@@ -147,8 +149,10 @@ export class BlackMage extends Enemy {
       // 水平方向の弾 (画面右端から左へ)
       // 弾の数を減らし、間隔を調整
       const numHorizontalBullets = 5;
+      const fixedY = 1.2; // 高さを固定
       for (let i = 0; i < numHorizontalBullets; i++) {
-        const y = 0.6 + i * 0.35; // 高さと間隔を調整
+        //const y = 0.6 + i * 0.35; // 高さと間隔を調整
+        const y = fixedY; // 高さ固定
         const spawnX = maxCoord + spawnOffset; // 右端から
         // Z座標は敵の現在のZ位置を中心に、範囲内に収まるように調整
         const spawnZ = Math.max(
@@ -177,6 +181,7 @@ export class BlackMage extends Enemy {
       // 垂直方向の弾 (画面奥から手前へ)
       // 弾の数を減らす
       const numVerticalBullets = 4;
+      const fixedY2 = 0.8; // 高さを固定
       for (let i = 0; i < numVerticalBullets; i++) {
         // X座標は敵の現在のX位置を中心に、範囲内に収まるように調整
         const spawnX = Math.max(
@@ -184,7 +189,8 @@ export class BlackMage extends Enemy {
           Math.min(maxCoord, mageX + (Math.random() - 0.5) * 12), // 少し範囲を広げる
         );
         const spawnZ = maxCoord + spawnOffset; // 奥から
-        const y = 1.0 + Math.random() * 1.5; // 高さ (ランダム性追加)
+        //const y = 1.0 + Math.random() * 1.5; // 高さ (ランダム性追加)
+        const y = fixedY2; // 高さ固定
 
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(
@@ -199,9 +205,9 @@ export class BlackMage extends Enemy {
         );
         mesh.position.set(spawnX, y, spawnZ);
         mesh.castShadow = true; // 影を落とす
-        // 奥→手前、緩急をつける
         const vz = -2.0 - Math.sin(Date.now() * 0.001 + i) * 0.7;
-        const velocity = new THREE.Vector3(0, (Math.random() - 0.5) * 0.5, vz);
+        // 修正: 高さ方向の速度をゼロに設定
+        const velocity = new THREE.Vector3(0, 0, vz);
         this.mesh.parent?.add(mesh);
         this.bullets.push({ mesh, velocity, lifetime: 10 }); // 生存時間を調整
       }
@@ -256,6 +262,7 @@ export class BlackMage extends Enemy {
     if (this.bulletCooldown <= 0) {
       const center = this.mesh.position.clone();
       const numBullets = 7 + Math.floor(Math.random() * 6);
+      const fixedY = 1.2; // 高さを固定
       for (let i = 0; i < numBullets; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 2 + Math.random() * 4;
@@ -266,11 +273,12 @@ export class BlackMage extends Enemy {
             emissive: 0x660000,
           }),
         );
-        mesh.position.copy(center).add(new THREE.Vector3(0, 0, 0)); // y座標を0に変更
+        //mesh.position.copy(center).add(new THREE.Vector3(0, 0, 0)); // y座標を0に変更
+        mesh.position.set(center.x, fixedY, center.z); // 高さ固定
         mesh.castShadow = true; // 影を落とす
         const velocity = new THREE.Vector3(
           Math.cos(angle) * speed,
-          (Math.random() - 0.5) * 2,
+          0, // 高さ方向の速度も0に固定
           Math.sin(angle) * speed,
         );
         this.mesh.parent?.add(mesh);

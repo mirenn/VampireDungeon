@@ -29,6 +29,10 @@ export class GameManager {
   private pathfindingDebugObject: THREE.Group | null = null;
   private debugLastPath: THREE.Vector3[] = [];
 
+  // シャドウカメラのデバッグ用変数を追加
+  private shadowCameraHelper: THREE.CameraHelper | null = null;
+  private showShadowHelper: boolean = false;
+
   // キーボード入力の状態を管理
   private keysPressed: { [key: string]: boolean } = {};
 
@@ -91,16 +95,21 @@ export class GameManager {
   // ゲームの初期化
   public init(): void {
     // 環境光の追加
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    this.scene.add(ambientLight);
+    //const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    //this.scene.add(ambientLight);
 
     // 平行光源の追加（太陽光）
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 10, 5);
     directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(directionalLight);
+
+    // シャドウカメラヘルパーを作成（初期状態では非表示）
+    this.shadowCameraHelper = new THREE.CameraHelper(
+      directionalLight.shadow.camera,
+    );
+    this.shadowCameraHelper.visible = this.showShadowHelper;
+    this.scene.add(this.shadowCameraHelper);
 
     // 各システムの初期化
     this.levelSystem.init();
@@ -220,6 +229,11 @@ export class GameManager {
     if (event.key === 'd' || event.key === 'D') {
       this.togglePathfindingDebug();
     }
+
+    // Sキーでシャドウカメラヘルパーの表示/非表示を切り替え
+    if (event.key === 's' || event.key === 'S') {
+      this.toggleShadowHelper();
+    }
   }
 
   // キーアップイベントハンドラ
@@ -239,6 +253,11 @@ export class GameManager {
     this.playerSystem.update(deltaTime);
     this.enemySystem.update(deltaTime);
     this.itemSystem.update(deltaTime);
+
+    // シャドウカメラヘルパーの更新
+    if (this.shadowCameraHelper && this.showShadowHelper) {
+      this.shadowCameraHelper.update();
+    }
 
     // コントロールの更新（使用していない場合は無視）
     if (this.controls) {
@@ -396,5 +415,16 @@ export class GameManager {
 
     // 最後のパスを記録
     this.debugLastPath = [...playerPath];
+  }
+
+  // シャドウカメラヘルパーの表示切り替え
+  private toggleShadowHelper(): void {
+    this.showShadowHelper = !this.showShadowHelper;
+    if (this.shadowCameraHelper) {
+      this.shadowCameraHelper.visible = this.showShadowHelper;
+    }
+    console.log(
+      `シャドウカメラヘルパー: ${this.showShadowHelper ? 'オン' : 'オフ'}`,
+    );
   }
 }
