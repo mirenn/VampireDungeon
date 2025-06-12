@@ -16,7 +16,7 @@ type Bullet = {
 export class BlackMage extends Enemy {
   private state: 'pattern1' | 'pattern2' | 'pattern3' = 'pattern1';
   private patternTimer: number = 0;
-  private patternDuration: number = 7; // 各パターンの持続時間
+  private: number = 7; // 各パターンの持続時間
   private bullets: Bullet[] = [];
   private bulletCooldown: number = 0;
   private mageMesh: THREE.Mesh;
@@ -25,7 +25,6 @@ export class BlackMage extends Enemy {
   private phase: 1 | 2 | 3 = 1;
 
   // 追加: 移動用
-  private moveDirection: number = 1;
   private moveTimer: number = 0;
 
   constructor(x: number, y: number) {
