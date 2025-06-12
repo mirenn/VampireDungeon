@@ -83,29 +83,38 @@ function UI(props: UIProps) {
         </div>
         {/* ダンジョンレベル */}
         <div className="dungeon-level">ダンジョン レベル: {dunLevel}</div>{' '}
-      </div>
-
+      </div>{' '}
       {/* スキルバー - 画面中央下 */}
       <div className="skills-bottom-bar">
-        {Object.entries(skillCooldowns).map(([key, skill]) => (
-          <div
-            key={key}
-            className={`skill-item-bottom ${skill.current <= 0 ? 'ready' : ''}`}
-          >
-            <div className="skill-key-bottom">{key}</div>
-            <div className="skill-name-bottom">{skill.name}</div>
-            <div className="skill-cooldown-bg-bottom">
-              <div
-                className={`skill-cooldown-fill-bottom ${skill.current <= 0 ? 'ready' : ''}`}
-                style={{
-                  width: `${getCooldownProgress(skill.current, skill.max)}%`,
-                }}
-              ></div>
+        {Object.entries(skillCooldowns).map(([key, skill]) => {
+          const isDisabled = skill.name === '未設定';
+          return (
+            <div
+              key={key}
+              className={`skill-item-bottom ${
+                skill.current <= 0 && !isDisabled ? 'ready' : ''
+              } ${isDisabled ? 'disabled' : ''}`}
+            >
+              <div className="skill-key-bottom">{key}</div>
+              <div className="skill-name-bottom">{skill.name}</div>
+              <div className="skill-cooldown-bg-bottom">
+                <div
+                  className={`skill-cooldown-fill-bottom ${
+                    skill.current <= 0 && !isDisabled ? 'ready' : ''
+                  }`}
+                  style={{
+                    width: `${
+                      isDisabled
+                        ? 0
+                        : getCooldownProgress(skill.current, skill.max)
+                    }%`,
+                  }}
+                ></div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-
       {/* 武器・アイテム欄 */}
       <div className="items-panel">
         <h3>装備中の武器</h3>
