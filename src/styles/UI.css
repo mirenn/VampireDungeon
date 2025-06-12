@@ -85,77 +85,7 @@
   transition: width 0.3s ease;
 }
 
-/* スキルクールダウン表示 */
-.skills-container {
-  margin: 15px 0;
-}
 
-.skills-container h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 16px;
-  color: #f1c40f;
-}
-
-.skills-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.skill-item {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 8px;
-  position: relative;
-}
-
-/* 追加: クールダウン完了時のアニメーション */
-.skill-item.ready {
-  animation: skillFlash 0.5s ease-in-out;
-}
-
-.skill-key {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background-color: #2c3e50;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.skill-name {
-  margin: 0 0 5px 30px;
-  font-size: 14px;
-}
-
-.skill-cooldown-bg {
-  width: 100%;
-  height: 8px;
-  background-color: #333;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.skill-cooldown-fill {
-  height: 100%;
-  background-color: #7f8c8d; /* クールダウン中は灰色 */
-  transition: width 0.3s ease;
-}
-
-.skill-cooldown-fill.ready {
-  background-color: #2ecc71; /* 準備完了は緑色 */
-  box-shadow: 0 0 10px #2ecc71; /* 目立たせるエフェクト */
-}
-
-.skill-cooldown-text {
-  text-align: right;
-  font-size: 12px;
-  margin-top: 3px;
-  color: #bdc3c7;
-}
 
 .dungeon-level {
   font-size: 16px;
@@ -194,4 +124,81 @@
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   font-size: 14px;
+}
+
+/* 画面中央下のスキルバー */
+.skills-bottom-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 15px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 12px;
+  padding: 10px 20px;
+  border: 2px solid rgba(241, 196, 15, 0.3);
+}
+
+.skill-item-bottom {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  position: relative;
+  width: 80px;
+  text-align: center;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.skill-item-bottom:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(241, 196, 15, 0.5);
+}
+
+.skill-item-bottom.ready {
+  animation: skillFlash 0.5s ease-in-out;
+  border-color: rgba(46, 204, 113, 0.6);
+  box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
+}
+
+.skill-key-bottom {
+  background-color: #2c3e50;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  margin: 0 auto 5px auto;
+  color: white;
+}
+
+.skill-name-bottom {
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #ecf0f1;
+  min-height: 15px;
+}
+
+.skill-cooldown-bg-bottom {
+  width: 100%;
+  height: 6px;
+  background-color: #333;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.skill-cooldown-fill-bottom {
+  height: 100%;
+  background-color: #7f8c8d;
+  transition: width 0.3s ease;
+}
+
+.skill-cooldown-fill-bottom.ready {
+  background-color: #2ecc71;
+  box-shadow: 0 0 8px #2ecc71;
 }
