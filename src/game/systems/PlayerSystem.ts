@@ -101,7 +101,7 @@ export class PlayerSystem {
       const distance = direction.length();
 
       // プレイヤーの向きを徐々に移動方向に変える
-      this.player.smoothLookAt(currentTarget, 5 * deltaTime); // 回転速度を調整
+      this.player.smoothLookAt(currentTarget, 50 * deltaTime); // 回転速度を調整
 
       // 次の目標点に十分近づいたらインデックスを進める
       if (distance < 0.5) {
