@@ -14,6 +14,11 @@
   }
 }
 
+@keyframes passiveGlow {
+  0% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+  100% { box-shadow: 0 0 25px rgba(255, 215, 0, 1); }
+}
+
 .ui-container {
   position: absolute;
   top: 0;
@@ -275,4 +280,37 @@
 
 .health-mana-bars .mana-bar-bg {
   background-color: #152544;
+}
+
+/* パッシブスキル表示 */
+.passive-skill-display {
+  position: absolute;
+  bottom: 120px; /* HP・MPバーの上に配置 */
+  left: 20px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.9), rgba(255, 140, 0, 0.9));
+  border: 2px solid #ffd700;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #000;
+  font-weight: bold;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+  animation: passiveGlow 2s ease-in-out infinite alternate;
+  min-width: 200px;
+}
+
+.passive-skill-name {
+  font-size: 12px;
+  margin-bottom: 2px;
+  color: #8b4513;
+}
+
+.passive-skill-info {
+  font-size: 11px;
+  margin-bottom: 2px;
+  color: #000;
+}
+
+.passive-skill-timer {
+  font-size: 10px;
+  color: #654321;
 }

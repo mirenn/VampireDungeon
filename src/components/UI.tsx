@@ -6,11 +6,17 @@ interface UIProps {}
 function UI(props: UIProps) {
   // 単純化したステート
   const [health, setHealth] = useState(100);
-  const [maxHealth, setMaxHealth] = useState(100);
-  const [mana, setMana] = useState(100); // マナ用のステート追加
+  const [maxHealth, setMaxHealth] = useState(100);  const [mana, setMana] = useState(100); // マナ用のステート追加
   const [maxMana, setMaxMana] = useState(100); // 最大マナ用のステート追加
   const [dunLevel, setDunLevel] = useState(1);
   const weapons = ['basic'];
+
+  // パッシブスキル用のステート
+  const [speedBonus, setSpeedBonus] = useState({
+    stacks: 0,
+    bonusPercent: 0,
+    remainingTime: 0
+  });
 
   // スキルのクールダウン用のステート
   const [skillCooldowns, setSkillCooldowns] = useState({
@@ -19,7 +25,6 @@ function UI(props: UIProps) {
     E: { max: 15, current: 0, name: '未実装' },
     R: { max: 30, current: 0, name: '未実装' },
   });
-
   // ゲームデータの更新を監視
   useEffect(() => {
     const updateUI = () => {
@@ -32,6 +37,15 @@ function UI(props: UIProps) {
 
         if (player.skills && player.skills.cooldowns) {
           setSkillCooldowns(player.skills.cooldowns);
+        }        // パッシブスキル情報を更新
+        if (player.speedBonusInfo) {
+          const bonusInfo = player.speedBonusInfo;
+          const remainingTime = Math.max(0, (bonusInfo.endTime - Date.now()) / 1000);
+          setSpeedBonus({
+            stacks: bonusInfo.stacks,
+            bonusPercent: bonusInfo.bonusPercent,
+            remainingTime: remainingTime
+          });
         }
       }
 
@@ -88,8 +102,19 @@ function UI(props: UIProps) {
               </div>
             </div>
           );
-        })}{' '}
-      </div>
+        })}{' '}      </div>
+      {/* パッシブスキル表示 */}
+      {speedBonus.stacks > 0 && (
+        <div className="passive-skill-display">
+          <div className="passive-skill-name">ハンターの本能</div>
+          <div className="passive-skill-info">
+            移動速度 +{speedBonus.bonusPercent}% ({speedBonus.stacks}スタック)
+          </div>
+          <div className="passive-skill-timer">
+            残り時間: {speedBonus.remainingTime.toFixed(1)}秒
+          </div>
+        </div>
+      )}
       {/* HP・MPバー - スキルの下 */}
       <div className="health-mana-bars">
         {/* 体力バー */}

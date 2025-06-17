@@ -25,12 +25,13 @@ export class PlayerSystem {
   constructor(
     private scene: THREE.Scene,
     private camera: THREE.Camera,
-  ) {
-    // キー入力のイベントリスナーを設定
+  ) {    // キー入力のイベントリスナーを設定
     window.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('keyup', this.onKeyUp.bind(this));
     // 右クリックのイベントリスナーを設定
     window.addEventListener('contextmenu', this.onRightClick.bind(this));
+    // 左クリックのイベントリスナーを設定
+    window.addEventListener('click', this.onLeftClick.bind(this));
 
     // Raycasterの初期化
     this.raycaster = new THREE.Raycaster();
@@ -962,8 +963,57 @@ export class PlayerSystem {
         console.log('安全な位置への直接移動を試みます。');
         this.targetPosition = bestPoint;
       }
-    } else {
-      console.log('安全な位置が見つかりませんでした。');
+    } else {      console.log('安全な位置が見つかりませんでした。');
+    }
+  }
+
+  // 左クリックオートアタック処理
+  private onLeftClick(event: MouseEvent): void {
+    if (!this.player || !this.enemySystem) return;
+
+    // マウス座標を正規化
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // レイキャスターを設定
+    this.raycaster.setFromCamera(mouse, this.camera);
+
+    // 敵リストを取得
+    const enemies = this.enemySystem.getEnemies();
+    if (enemies.length === 0) return;
+
+    // 敵のメッシュを収集
+    const enemyMeshes: THREE.Object3D[] = [];
+    enemies.forEach((enemy: any) => {
+      enemyMeshes.push(enemy.mesh);
+    });
+
+    // レイキャストで敵との交差を検出
+    const intersects = this.raycaster.intersectObjects(enemyMeshes, true);
+    
+    let targetEnemy = null;
+    
+    if (intersects.length > 0) {
+      // クリックした敵を見つける
+      const clickedMesh = intersects[0].object;
+      targetEnemy = enemies.find((enemy: any) => 
+        enemy.mesh === clickedMesh || enemy.mesh.children.includes(clickedMesh)
+      );
+    }
+
+    if (!targetEnemy) {
+      // クリック位置に敵がいない場合、最も近い敵を選択
+      targetEnemy = this.player.findNearestEnemy(enemies);
+    }
+
+    if (targetEnemy) {
+      // オートアタック実行
+      if (this.player.performAutoAttack(targetEnemy)) {
+        console.log(`オートアタック: ${targetEnemy.mesh.name}を攻撃`);
+      } else {
+        console.log('攻撃範囲外またはクールダウン中です');
+      }
     }
   }
 }

@@ -44,6 +44,16 @@ export class Player {
   // PathFindingSystemへの参照を保持するプロパティ
   private pathFindingSystem: PathFindingSystem | null = null;
 
+  // オートアタック関連
+  private autoAttackTarget: any | null = null; // Enemy型の代わりにanyを使用
+  private lastAutoAttackTime: number = 0;
+
+  // パッシブスキル関連
+  private attackedEnemies: Map<string, number> = new Map(); // 敵ID -> 攻撃回数
+  private speedBonusStacks: number = 0; // 移動速度ボーナススタック数
+  private speedBonusEndTime: number = 0; // ボーナス終了時間
+  private baseSpeed: number = 5; // 基本移動速度
+
   constructor() {
     // プレイヤーのメッシュを作成
     const playerGroup = new THREE.Group();
@@ -72,13 +82,14 @@ export class Player {
     skillObject.rotation.z = Math.PI / 4;
     skillObject.castShadow = true;
     skillObject.userData.isSkillObject = true;
-    playerGroup.add(skillObject);
-
-    this.mesh = playerGroup;
+    playerGroup.add(skillObject);    this.mesh = playerGroup;
     this.mesh.name = 'player';
 
     // スキルのクールダウンを初期化
     this.skillCooldowns['magicOrb'] = 0;
+
+    // 基本移動速度を保存
+    this.baseSpeed = this.speed;
   }
   // バウンディングボックスを更新するメソッド（武器を除外）
   private updateBoundingBox(): void {
@@ -187,10 +198,11 @@ export class Player {
           this.skillCooldowns[skillId] = 0;
         }
       }
-    }
-
-    // マナの自動回復
+    }    // マナの自動回復
     this.regenerateMana(deltaTime);
+
+    // パッシブスキルの移動速度ボーナス更新
+    this.updateSpeedBonus(deltaTime);
 
     // UI用にクールダウン情報を更新
     this.updateUISkillCooldowns();
@@ -361,7 +373,6 @@ export class Player {
     };
     requestAnimationFrame(animate);
   }
-
   // 回復する
   public heal(amount: number): void {
     this.health += amount;
@@ -514,13 +525,14 @@ export class Player {
 
     if (!(window as any).gamePlayer.skills) {
       (window as any).gamePlayer.skills = {};
-    }
-
-    // プレイヤーの体力とマナ情報を更新
+    }    // プレイヤーの体力とマナ情報を更新
     (window as any).gamePlayer.health = this.health;
     (window as any).gamePlayer.maxHealth = this.maxHealth;
     (window as any).gamePlayer.mana = this.mana;
     (window as any).gamePlayer.maxMana = this.maxMana;
+
+    // パッシブスキル情報も更新
+    (window as any).gamePlayer.speedBonusInfo = this.getSpeedBonusInfo();
 
     // クールダウン情報をUIで使用できる形式に変換
     const cooldowns = {
@@ -580,5 +592,110 @@ export class Player {
       this.updateUISkillCooldowns();
       console.log(`スキル ${skillId} のクールダウンを${seconds}秒短縮しました`);
     }
+  }
+
+  // オートアタック機能
+  public performAutoAttack(target: any): boolean {
+    const currentTime = Date.now();
+    const cooldownTime = 1000 / this.attackSpeed; // attackSpeedから攻撃間隔を計算
+
+    // クールダウン中かチェック
+    if (currentTime - this.lastAutoAttackTime < cooldownTime) {
+      return false;
+    }
+
+    // 攻撃範囲内かチェック
+    const distance = this.mesh.position.distanceTo(target.mesh.position);
+    if (distance > this.attackRange) {
+      return false;
+    }
+
+    // 攻撃実行
+    target.takeDamage(this.attackPower);
+    this.lastAutoAttackTime = currentTime;
+    this.autoAttackTarget = target;
+
+    // パッシブスキル効果チェック
+    this.checkPassiveBonus(target.mesh.uuid);
+
+    console.log(`オートアタック: ${target.mesh.name}に${this.attackPower}ダメージ`);
+    return true;
+  }
+
+  // 最も近い敵を見つける
+  public findNearestEnemy(enemies: any[]): any | null {
+    if (enemies.length === 0) return null;
+
+    let nearestEnemy = null;
+    let minDistance = Infinity;
+
+    enemies.forEach((enemy) => {
+      const distance = this.mesh.position.distanceTo(enemy.mesh.position);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestEnemy = enemy;
+      }
+    });
+
+    return nearestEnemy;
+  }
+
+  // パッシブスキル効果チェック
+  private checkPassiveBonus(enemyId: string): void {
+    const currentAttackCount = this.attackedEnemies.get(enemyId) || 0;
+    const newAttackCount = currentAttackCount + 1;
+    
+    // 攻撃回数を更新
+    this.attackedEnemies.set(enemyId, newAttackCount);
+
+    // ボーナス条件チェック
+    if (currentAttackCount === 0 || newAttackCount === 5) {
+      this.addSpeedBonus();
+      if (currentAttackCount === 0) {
+        console.log('パッシブ発動: 初回攻撃による移動速度ボーナス');
+      } else {
+        console.log('パッシブ発動: 5回攻撃による移動速度ボーナス');
+      }
+    }
+  }
+  // 移動速度ボーナス更新
+  private updateSpeedBonus(_deltaTime: number): void {
+    const currentTime = Date.now();
+    
+    // ボーナス時間が終了した場合
+    if (this.speedBonusStacks > 0 && currentTime > this.speedBonusEndTime) {
+      this.speedBonusStacks = 0;
+      this.recalculateSpeed();
+      console.log('移動速度ボーナス終了');
+    }
+  }
+
+  // 移動速度ボーナス追加
+  private addSpeedBonus(): void {
+    // スタック追加（最大5スタック = 100%）
+    this.speedBonusStacks = Math.min(5, this.speedBonusStacks + 1);
+    
+    // ボーナス時間を延長（5秒）
+    this.speedBonusEndTime = Date.now() + 5000;
+    
+    // 移動速度を再計算
+    this.recalculateSpeed();
+    
+    console.log(`移動速度ボーナス: ${this.speedBonusStacks}スタック (${this.speedBonusStacks * 20}%)`);
+  }
+
+  // 移動速度再計算
+  private recalculateSpeed(): void {
+    const bonusPercent = this.speedBonusStacks * 20; // 20% per stack
+    this.speed = this.baseSpeed * (1 + bonusPercent / 100);
+  }
+
+  // 移動速度ボーナス情報取得（UI用）
+  public getSpeedBonusInfo(): { stacks: number; endTime: number; bonusPercent: number } {
+    return {
+      stacks: this.speedBonusStacks,
+      endTime: this.speedBonusEndTime,
+      bonusPercent: this.speedBonusStacks * 20
+    };
   }
 }
