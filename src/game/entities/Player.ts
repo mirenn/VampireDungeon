@@ -82,7 +82,8 @@ export class Player {
     skillObject.rotation.z = Math.PI / 4;
     skillObject.castShadow = true;
     skillObject.userData.isSkillObject = true;
-    playerGroup.add(skillObject);    this.mesh = playerGroup;
+    playerGroup.add(skillObject);
+    this.mesh = playerGroup;
     this.mesh.name = 'player';
 
     // スキルのクールダウンを初期化
@@ -198,7 +199,7 @@ export class Player {
           this.skillCooldowns[skillId] = 0;
         }
       }
-    }    // マナの自動回復
+    } // マナの自動回復
     this.regenerateMana(deltaTime);
 
     // パッシブスキルの移動速度ボーナス更新
@@ -525,7 +526,7 @@ export class Player {
 
     if (!(window as any).gamePlayer.skills) {
       (window as any).gamePlayer.skills = {};
-    }    // プレイヤーの体力とマナ情報を更新
+    } // プレイヤーの体力とマナ情報を更新
     (window as any).gamePlayer.health = this.health;
     (window as any).gamePlayer.maxHealth = this.maxHealth;
     (window as any).gamePlayer.mana = this.mana;
@@ -618,7 +619,9 @@ export class Player {
     // パッシブスキル効果チェック
     this.checkPassiveBonus(target.mesh.uuid);
 
-    console.log(`オートアタック: ${target.mesh.name}に${this.attackPower}ダメージ`);
+    console.log(
+      `オートアタック: ${target.mesh.name}に${this.attackPower}ダメージ`,
+    );
     return true;
   }
 
@@ -644,7 +647,7 @@ export class Player {
   private checkPassiveBonus(enemyId: string): void {
     const currentAttackCount = this.attackedEnemies.get(enemyId) || 0;
     const newAttackCount = currentAttackCount + 1;
-    
+
     // 攻撃回数を更新
     this.attackedEnemies.set(enemyId, newAttackCount);
 
@@ -661,7 +664,7 @@ export class Player {
   // 移動速度ボーナス更新
   private updateSpeedBonus(_deltaTime: number): void {
     const currentTime = Date.now();
-    
+
     // ボーナス時間が終了した場合
     if (this.speedBonusStacks > 0 && currentTime > this.speedBonusEndTime) {
       this.speedBonusStacks = 0;
@@ -674,14 +677,16 @@ export class Player {
   private addSpeedBonus(): void {
     // スタック追加（最大5スタック = 100%）
     this.speedBonusStacks = Math.min(5, this.speedBonusStacks + 1);
-    
+
     // ボーナス時間を延長（5秒）
     this.speedBonusEndTime = Date.now() + 5000;
-    
+
     // 移動速度を再計算
     this.recalculateSpeed();
-    
-    console.log(`移動速度ボーナス: ${this.speedBonusStacks}スタック (${this.speedBonusStacks * 20}%)`);
+
+    console.log(
+      `移動速度ボーナス: ${this.speedBonusStacks}スタック (${this.speedBonusStacks * 20}%)`,
+    );
   }
 
   // 移動速度再計算
@@ -691,11 +696,15 @@ export class Player {
   }
 
   // 移動速度ボーナス情報取得（UI用）
-  public getSpeedBonusInfo(): { stacks: number; endTime: number; bonusPercent: number } {
+  public getSpeedBonusInfo(): {
+    stacks: number;
+    endTime: number;
+    bonusPercent: number;
+  } {
     return {
       stacks: this.speedBonusStacks,
       endTime: this.speedBonusEndTime,
-      bonusPercent: this.speedBonusStacks * 20
+      bonusPercent: this.speedBonusStacks * 20,
     };
   }
 }

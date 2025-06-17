@@ -25,7 +25,8 @@ export class PlayerSystem {
   constructor(
     private scene: THREE.Scene,
     private camera: THREE.Camera,
-  ) {    // キー入力のイベントリスナーを設定
+  ) {
+    // キー入力のイベントリスナーを設定
     window.addEventListener('keydown', this.onKeyDown.bind(this));
     window.addEventListener('keyup', this.onKeyUp.bind(this));
     // 右クリックのイベントリスナーを設定
@@ -963,7 +964,8 @@ export class PlayerSystem {
         console.log('安全な位置への直接移動を試みます。');
         this.targetPosition = bestPoint;
       }
-    } else {      console.log('安全な位置が見つかりませんでした。');
+    } else {
+      console.log('安全な位置が見つかりませんでした。');
     }
   }
 
@@ -991,14 +993,16 @@ export class PlayerSystem {
 
     // レイキャストで敵との交差を検出
     const intersects = this.raycaster.intersectObjects(enemyMeshes, true);
-    
+
     let targetEnemy = null;
-    
+
     if (intersects.length > 0) {
       // クリックした敵を見つける
       const clickedMesh = intersects[0].object;
-      targetEnemy = enemies.find((enemy: any) => 
-        enemy.mesh === clickedMesh || enemy.mesh.children.includes(clickedMesh)
+      targetEnemy = enemies.find(
+        (enemy: any) =>
+          enemy.mesh === clickedMesh ||
+          enemy.mesh.children.includes(clickedMesh),
       );
     }
 

@@ -22,6 +22,7 @@
 ## 3. 実装されたデータ構造とメソッド
 
 ### Player.tsに追加されたプロパティ:
+
 ```typescript
 // オートアタック関連
 private autoAttackTarget: any | null = null;
@@ -35,6 +36,7 @@ private baseSpeed: number = 5;
 ```
 
 ### 追加されたメソッド:
+
 ```typescript
 // オートアタック
 public performAutoAttack(target: any): boolean
@@ -57,7 +59,7 @@ public getSpeedBonusInfo(): object
 ## 5. 使用方法
 
 1. **左クリック**: 敵をクリックするか、空いている場所をクリックして最も近い敵を攻撃
-2. **パッシブ効果**: 
+2. **パッシブ効果**:
    - 新しい敵への初回攻撃で移動速度ボーナス
    - 同じ敵への5回目攻撃で追加ボーナス
    - 最大5スタック（100%移動速度上昇）まで蓄積可能

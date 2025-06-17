@@ -6,7 +6,8 @@ interface UIProps {}
 function UI(props: UIProps) {
   // 単純化したステート
   const [health, setHealth] = useState(100);
-  const [maxHealth, setMaxHealth] = useState(100);  const [mana, setMana] = useState(100); // マナ用のステート追加
+  const [maxHealth, setMaxHealth] = useState(100);
+  const [mana, setMana] = useState(100); // マナ用のステート追加
   const [maxMana, setMaxMana] = useState(100); // 最大マナ用のステート追加
   const [dunLevel, setDunLevel] = useState(1);
   const weapons = ['basic'];
@@ -15,7 +16,7 @@ function UI(props: UIProps) {
   const [speedBonus, setSpeedBonus] = useState({
     stacks: 0,
     bonusPercent: 0,
-    remainingTime: 0
+    remainingTime: 0,
   });
 
   // スキルのクールダウン用のステート
@@ -37,14 +38,17 @@ function UI(props: UIProps) {
 
         if (player.skills && player.skills.cooldowns) {
           setSkillCooldowns(player.skills.cooldowns);
-        }        // パッシブスキル情報を更新
+        } // パッシブスキル情報を更新
         if (player.speedBonusInfo) {
           const bonusInfo = player.speedBonusInfo;
-          const remainingTime = Math.max(0, (bonusInfo.endTime - Date.now()) / 1000);
+          const remainingTime = Math.max(
+            0,
+            (bonusInfo.endTime - Date.now()) / 1000,
+          );
           setSpeedBonus({
             stacks: bonusInfo.stacks,
             bonusPercent: bonusInfo.bonusPercent,
-            remainingTime: remainingTime
+            remainingTime: remainingTime,
           });
         }
       }
@@ -102,7 +106,8 @@ function UI(props: UIProps) {
               </div>
             </div>
           );
-        })}{' '}      </div>
+        })}{' '}
+      </div>
       {/* パッシブスキル表示 */}
       {speedBonus.stacks > 0 && (
         <div className="passive-skill-display">
