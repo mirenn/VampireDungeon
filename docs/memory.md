@@ -1,115 +1,153 @@
-# 実装完了：左クリックオートアタック & パッシブスキル
+# 実装予定：AAモーション & 弾丸システム
 
-## 1. 左クリックオートアタック機能 ✅ 完了
+## 1. AAモーション実装 🎯 実装予定
 
-- **実装内容**:
-  - PlayerSystemにleft-clickイベントリスナーを追加 ✅
-  - クリック位置の敵検出（Raycaster使用） ✅
-  - 最も近い敵への自動攻撃実行 ✅
-  - 攻撃範囲内チェック（Player.attackRange: 2） ✅
-  - 攻撃クールダウン管理（Player.attackSpeed: 1から計算） ✅
+### 基本仕様
 
-## 2. 主人公のパッシブスキル実装 ✅ 完了
+- **AAモーション時間**: 0.3秒（攻撃開始から弾丸発射まで）
+- **モーション中の制約**: 移動入力でAAキャンセル
+- **視覚表現**: プレイヤーが敵の方向を向き、攻撃ポーズを取る
 
-- **パッシブ名**: 「ハンターの本能」
-- **実装された効果**:
-  1. 初めて攻撃する敵への攻撃時: 移動速度20%上昇 ✅
-  2. 同一敵への5回攻撃時: 移動速度20%上昇 ✅
-  3. ボーナス持続時間：5秒 ✅
-  4. ボーナス延長：継続中の追加取得で延長 ✅
-  5. スタック可能（最大5スタック = 100%まで） ✅
-
-## 3. 実装されたデータ構造とメソッド
-
-### Player.tsに追加されたプロパティ:
+### 実装する状態管理
 
 ```typescript
-// オートアタック関連
-private autoAttackTarget: any | null = null;
-private lastAutoAttackTime: number = 0;
-
-// パッシブスキル関連
-private attackedEnemies: Map<string, number> = new Map();
-private speedBonusStacks: number = 0;
-private speedBonusEndTime: number = 0;
-private baseSpeed: number = 5;
+// Player.ts に追加
+private isAttacking: boolean = false;
+private attackStartTime: number = 0;
+private attackMotionDuration: number = 0.3; // 0.3秒
+private attackTarget: Enemy | null = null;
+private originalRotation: number = 0; // モーション後に元の回転に戻すため
 ```
 
-### 追加されたメソッド:
+### AAモーション段階
+
+1. **攻撃開始**: `startAttackMotion(target: Enemy)`
+   - プレイヤーを敵の方向に向ける
+   - `isAttacking = true`
+   - 移動を無効化
+2. **モーション中**: `updateAttackMotion(deltaTime: number)`
+
+   - 移動入力チェック → 入力があればキャンセル
+   - 0.3秒経過 → 弾丸発射
+
+3. **モーション完了**: `completeAttackMotion()`
+   - 弾丸生成・発射
+   - `isAttacking = false`
+   - 移動再有効化
+
+## 2. 弾丸システム実装 💫 実装予定
+
+### 弾丸クラス設計
 
 ```typescript
-// オートアタック
-public performAutoAttack(target: any): boolean
-public findNearestEnemy(enemies: any[]): any | null
+// 新規ファイル: src/game/entities/Projectile.ts
+export class Projectile {
+  private mesh: THREE.Mesh;
+  private startPosition: THREE.Vector3;
+  private targetPosition: THREE.Vector3;
+  private speed: number = 15; // 弾丸速度
+  private damage: number;
+  private targetEnemy: Enemy;
+  private traveled: number = 0;
+  private totalDistance: number;
 
-// パッシブスキル
-private checkPassiveBonus(enemyId: string): void
-private updateSpeedBonus(deltaTime: number): void
-private addSpeedBonus(): void
-private recalculateSpeed(): void
-public getSpeedBonusInfo(): object
+  constructor(start: THREE.Vector3, target: Enemy, damage: number);
+  public update(deltaTime: number): boolean; // true: 到達, false: 飛行中
+  public destroy(): void;
+}
 ```
 
-## 4. UI更新 ✅ 完了
+### 弾丸の視覚表現
 
-- パッシブスキル「ハンターの本能」の視覚表示
-- スタック数と残り時間の表示
-- 金色の光るエフェクト付きUI
+- **形状**: 小さな光る球体（半径0.1）
+- **色**: 青白い光（emissive material）
+- **エフェクト**: 軌跡パーティクル（オプション）
 
-## 5. 使用方法
-
-1. **左クリック**: 敵をクリックするか、空いている場所をクリックして最も近い敵を攻撃
-2. **パッシブ効果**:
-   - 新しい敵への初回攻撃で移動速度ボーナス
-   - 同じ敵への5回目攻撃で追加ボーナス
-   - 最大5スタック（100%移動速度上昇）まで蓄積可能
-
-## 3. 実装が必要な新規データ構造
-
-### Player.tsに追加すべきプロパティ:
+### 弾丸システム管理
 
 ```typescript
-// オートアタック関連
-private autoAttackTarget: Enemy | null = null;
-private lastAutoAttackTime: number = 0;
+// 新規ファイル: src/game/systems/ProjectileSystem.ts
+export class ProjectileSystem {
+  private projectiles: Projectile[] = [];
+  private scene: THREE.Scene;
 
-// パッシブスキル関連
-private attackedEnemies: Map<string, number> = new Map(); // 敵ID -> 攻撃回数
-private speedBonusStacks: number = 0; // 移動速度ボーナススタック数
-private speedBonusEndTime: number = 0; // ボーナス終了時間
-private baseSpeed: number = 5; // 基本移動速度（現在のspeed値を保存）
+  public createProjectile(
+    start: THREE.Vector3,
+    target: Enemy,
+    damage: number,
+  ): void;
+  public update(deltaTime: number): void; // 全弾丸の更新・衝突判定
+  public removeProjectile(projectile: Projectile): void;
+}
 ```
 
-### 新規メソッド:
+## 3. 統合実装内容
+
+### Player.ts 修正点
 
 ```typescript
-// オートアタック
-public performAutoAttack(target: Enemy): boolean
-private findNearestEnemy(enemies: Enemy[]): Enemy | null
+// 既存のperformAutoAttack()を2段階に分割
+public startAutoAttack(target: Enemy): boolean // AAモーション開始
+private fireProjectile(): void // 弾丸発射（モーション完了時）
 
-// パッシブスキル
-private checkPassiveBonus(enemyId: string): void
-private updateSpeedBonus(deltaTime: number): void
-private addSpeedBonus(): void
-private recalculateSpeed(): void
+// 移動処理にAAキャンセル判定を追加
+public move(direction: THREE.Vector3): void {
+  if (this.isAttacking) {
+    this.cancelAttack(); // AAキャンセル
+  }
+  // ...既存の移動処理
+}
+
+private cancelAttack(): void // AAモーションキャンセル
 ```
 
-## 4. システム連携
+### PlayerSystem.ts 修正点
 
-- **PlayerSystem**: マウスクリック処理とレイキャスト
-- **EnemySystem**: 敵リスト提供とダメージ処理連携
-- **GameManager**: システム間の橋渡し
+- AAモーション中の移動入力検出
+- ProjectileSystemとの連携
+- AAモーション更新処理追加
 
-## 5. UI更新
+### GameManager.ts 修正点
 
-- 移動速度ボーナスの視覚表示（UI.tsx）
-- パッシブスキル情報の表示
+- ProjectileSystemの追加・初期化
+- 各システム間の更新順序調整
 
-## 6. 実装順序
+## 4. 実装順序 📋
 
-1. 左クリックイベント処理追加
-2. オートアタック基本機能
-3. パッシブスキルデータ構造追加
-4. パッシブスキル効果実装
-5. UI更新
-6. テスト・デバッグ
+1. **Projectileクラス作成**
+
+   - 弾丸の基本動作（移動・衝突判定）
+   - 視覚表現（メッシュ・マテリアル）
+
+2. **ProjectileSystem作成**
+
+   - 弾丸管理システム
+   - GameManagerとの統合
+
+3. **Player.ts AAモーション実装**
+
+   - 状態管理の追加
+   - モーション段階の実装
+
+4. **PlayerSystem.ts 修正**
+
+   - AAモーション更新処理
+   - 移動入力キャンセル判定
+
+5. **統合テスト・調整**
+   - モーション時間の調整
+   - 弾丸速度・視覚効果の調整
+
+## 5. 技術仕様詳細
+
+### 座標計算
+
+- **弾丸軌道**: 直線補間（LERP）
+- **方向計算**: `target.position - player.position`の正規化
+- **衝突判定**: 弾丸位置と敵位置の距離チェック（閾値: 0.3）
+
+### パフォーマンス考慮
+
+- 弾丸の最大同時数制限（20発）
+- 画面外弾丸の自動削除
+- オブジェクトプールの活用（将来的に）
