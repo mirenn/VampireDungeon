@@ -3,6 +3,7 @@ import { Player } from '../entities/Player';
 import { LevelSystem } from './LevelSystem';
 import { PathFindingSystem } from './PathFindingSystem';
 import { SkillDatabase } from '../skills/Skills'; // SkillDatabaseをインポート
+import { AutoAttackTarget } from '../entities/AutoAttack';
 
 export class PlayerSystem {
   private player: Player | null = null;
@@ -21,6 +22,7 @@ export class PlayerSystem {
   private consecutiveCollisions: number | undefined = undefined; // 連続衝突回数
   private mousePosition: THREE.Vector2 = new THREE.Vector2(); // マウス位置を保存
   private enemySystem: any = null; // EnemySystemへの参照を追加
+  private hasMovementInput: boolean = false; // 移動入力フラグ
 
   constructor(
     private scene: THREE.Scene,
@@ -50,6 +52,10 @@ export class PlayerSystem {
   public init(): void {
     // プレイヤーキャラクターの作成
     this.player = new Player();
+    
+    // シーンへの参照を設定
+    this.player.setScene(this.scene);
+    
     this.scene.add(this.player.mesh);
 
     // レベルシステムが設定されている場合、スポーン位置を適用
@@ -86,11 +92,15 @@ export class PlayerSystem {
     const oldPosition = this.player.mesh.position.clone();
     let movementOccurred = false;
 
+    // 移動入力フラグをリセット
+    this.hasMovementInput = false;
+
     // パス追跡による移動処理
     if (
       this.pathToFollow.length > 0 &&
       this.currentPathIndex < this.pathToFollow.length
     ) {
+      this.hasMovementInput = true; // パス移動も移動入力として扱う
       const currentTarget = this.pathToFollow[this.currentPathIndex];
       const currentPos = this.player.getPosition();
 
@@ -159,6 +169,7 @@ export class PlayerSystem {
     }
     // 直線的な右クリック移動処理（パスが見つからなかった場合のフォールバック）
     else if (this.targetPosition) {
+      this.hasMovementInput = true; // 直線移動も移動入力として扱う
       const currentPos = this.player.getPosition();
       const direction = new THREE.Vector3().subVectors(
         this.targetPosition,
@@ -189,6 +200,11 @@ export class PlayerSystem {
 
     // プレイヤーの更新処理
     this.player.update(deltaTime);
+
+    // 移動入力があった場合、オートアタックをキャンセル
+    if (this.hasMovementInput && this.player.isAutoAttacking()) {
+      this.player.cancelAutoAttackOnMovement();
+    }
 
     // ナビメッシュを使って移動可能かどうかを判定
     if (this.pathFindingSystem && this.pathFindingSystem['navMesh']) {
@@ -973,6 +989,11 @@ export class PlayerSystem {
   private onLeftClick(event: MouseEvent): void {
     if (!this.player || !this.enemySystem) return;
 
+    // オートアタック中は新しい攻撃を開始しない
+    if (this.player.isAutoAttacking()) {
+      return;
+    }
+
     // マウス座標を正規化
     const mouse = new THREE.Vector2();
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -1012,11 +1033,19 @@ export class PlayerSystem {
     }
 
     if (targetEnemy) {
-      // オートアタック実行
-      if (this.player.performAutoAttack(targetEnemy)) {
-        console.log(`オートアタック: ${targetEnemy.mesh.name}を攻撃`);
+      // AutoAttackTarget インターフェースに適合する形にラップ
+      const autoAttackTarget: AutoAttackTarget = {
+        mesh: targetEnemy.mesh,
+        takeDamage: (amount: number) => targetEnemy.takeDamage(amount),
+        health: targetEnemy.health,
+        maxHealth: targetEnemy.maxHealth
+      };
+
+      // 新しいオートアタックシステムを使用
+      if (this.player.startAutoAttack(autoAttackTarget)) {
+        console.log(`オートアタック開始: ${targetEnemy.mesh.name}を攻撃対象に設定`);
       } else {
-        console.log('攻撃範囲外またはクールダウン中です');
+        console.log('攻撃範囲外またはクールダウン中、または他の制約により攻撃できません');
       }
     }
   }
