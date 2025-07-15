@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Skill, SkillDatabase } from '../skills/Skills';
 import type { SkillName } from '../skills/Skills';
 import { PathFindingSystem } from '../systems/PathFindingSystem'; // PathFindingSystemをインポート
+import { AutoAttack, AutoAttackTarget } from './AutoAttack';
 
 // SkillName型かどうかを判定する型ガード関数
 function isSkillName(skillId: string): skillId is SkillName {
@@ -45,8 +46,9 @@ export class Player {
   private pathFindingSystem: PathFindingSystem | null = null;
 
   // オートアタック関連
-  private autoAttackTarget: any | null = null; // Enemy型の代わりにanyを使用
+  private currentAutoAttack: AutoAttack | null = null;
   private lastAutoAttackTime: number = 0;
+  private scene: THREE.Scene | null = null; // シーンへの参照
 
   // パッシブスキル関連
   private attackedEnemies: Map<string, number> = new Map(); // 敵ID -> 攻撃回数
@@ -204,6 +206,9 @@ export class Player {
 
     // パッシブスキルの移動速度ボーナス更新
     this.updateSpeedBonus(deltaTime);
+
+    // オートアタックの更新
+    this.updateAutoAttack(deltaTime);
 
     // UI用にクールダウン情報を更新
     this.updateUISkillCooldowns();
@@ -595,8 +600,36 @@ export class Player {
     }
   }
 
-  // オートアタック機能
-  public performAutoAttack(target: any): boolean {
+  // シーンへの参照を設定するメソッド
+  public setScene(scene: THREE.Scene): void {
+    this.scene = scene;
+  }
+
+  // オートアタック更新処理
+  private updateAutoAttack(deltaTime: number): void {
+    if (this.currentAutoAttack) {
+      // 移動入力をチェック（プレイヤーシステムから取得する必要がある）
+      const hasMovementInput = this.checkMovementInput();
+      
+      if (this.currentAutoAttack.update(deltaTime, hasMovementInput)) {
+        // オートアタック完了
+        this.currentAutoAttack = null;
+      }
+    }
+  }
+
+  // 移動入力チェック（プレイヤーシステムから情報を取得）
+  private checkMovementInput(): boolean {
+    // このメソッドはPlayerSystemから呼び出される形に変更する予定
+    return false;
+  }
+
+  // 新しいオートアタック開始メソッド
+  public startAutoAttack(target: AutoAttackTarget): boolean {
+    if (this.currentAutoAttack && this.currentAutoAttack.isActive()) {
+      return false; // 既にアニメーション中
+    }
+
     const currentTime = Date.now();
     const cooldownTime = 1000 / this.attackSpeed; // attackSpeedから攻撃間隔を計算
 
@@ -611,18 +644,34 @@ export class Player {
       return false;
     }
 
-    // 攻撃実行
-    target.takeDamage(this.attackPower);
-    this.lastAutoAttackTime = currentTime;
-    this.autoAttackTarget = target;
+    // シーンが設定されているかチェック
+    if (!this.scene) {
+      console.error('Scene not set for player. Auto-attack cannot be performed.');
+      return false;
+    }
 
-    // パッシブスキル効果チェック
-    this.checkPassiveBonus(target.mesh.uuid);
+    // オートアタック開始
+    this.currentAutoAttack = new AutoAttack(this, target, this.scene);
+    if (this.currentAutoAttack.start()) {
+      this.lastAutoAttackTime = currentTime;
+      return true;
+    }
 
-    console.log(
-      `オートアタック: ${target.mesh.name}に${this.attackPower}ダメージ`,
-    );
-    return true;
+    return false;
+  }
+
+  // 移動入力でオートアタックをキャンセル
+  public cancelAutoAttackOnMovement(): void {
+    if (this.currentAutoAttack && this.currentAutoAttack.isActive()) {
+      this.currentAutoAttack.cancel();
+      this.currentAutoAttack = null;
+      console.log('オートアタックが移動により中断されました');
+    }
+  }
+
+  // オートアタック中かどうかを判定
+  public isAutoAttacking(): boolean {
+    return this.currentAutoAttack !== null && this.currentAutoAttack.isActive();
   }
 
   // 最も近い敵を見つける
@@ -644,7 +693,7 @@ export class Player {
   }
 
   // パッシブスキル効果チェック
-  private checkPassiveBonus(enemyId: string): void {
+  public checkPassiveBonus(enemyId: string): void {
     const currentAttackCount = this.attackedEnemies.get(enemyId) || 0;
     const newAttackCount = currentAttackCount + 1;
 
